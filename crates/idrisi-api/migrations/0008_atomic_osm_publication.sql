@@ -254,7 +254,7 @@ BEGIN
     UPDATE public.layers
     SET is_enabled = true, updated_at = now()
     WHERE dataset_id = dataset_row.id
-      AND slug IN ('osm_roads', 'osm_places', 'osm_buildings', 'osm_water');
+      AND slug IN ('roads', 'places', 'buildings', 'water');
 
     UPDATE public.ingestion_jobs
     SET dataset_version_id = version_id,
