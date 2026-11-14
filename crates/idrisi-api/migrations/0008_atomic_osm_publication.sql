@@ -107,6 +107,7 @@ BEGIN
 
     IF NOT FOUND
        OR publish_job.job_type <> 'osm.dataset.publish'
+       OR publish_job.importer_name <> 'idrisi-publisher'
        OR publish_job.status <> 'running'
        OR publish_job.lease_token IS DISTINCT FROM p_lease_token
        OR publish_job.lease_expires_at IS NULL
@@ -122,6 +123,7 @@ BEGIN
 
     IF NOT FOUND
        OR source_job.job_type <> 'osm.pbf.import'
+       OR source_job.importer_name <> 'osm2pgsql-flex'
        OR source_job.status <> 'succeeded'
        OR source_job.dataset_id <> publish_job.dataset_id
        OR source_job.result_metadata->>'state' IS DISTINCT FROM 'imported_validated_unpublished'
