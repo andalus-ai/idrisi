@@ -5,6 +5,9 @@ COPY Cargo.toml rust-toolchain.toml ./
 COPY crates/idrisi-api/Cargo.toml crates/idrisi-api/Cargo.toml
 COPY crates/idrisi-api/src crates/idrisi-api/src
 COPY crates/idrisi-api/migrations crates/idrisi-api/migrations
+# Cargo resolves every workspace member even when building one selected package.
+COPY crates/idrisi-ingestion/Cargo.toml crates/idrisi-ingestion/Cargo.toml
+COPY crates/idrisi-ingestion/src crates/idrisi-ingestion/src
 
 RUN cargo build --release -p idrisi-api
 
