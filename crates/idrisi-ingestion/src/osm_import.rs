@@ -29,6 +29,7 @@ pub struct DatasetBounds {
     pub south: f64,
     pub east: f64,
     pub north: f64,
+    pub coverage_wkt: String,
 }
 
 impl DatasetBounds {
@@ -78,55 +79,27 @@ pub async fn dataset_bounds(
     pool: &PgPool,
     dataset_id: Uuid,
 ) -> Result<DatasetBounds, OSMImportError> {
-    let row = sqlx::query_as::<_, (Option<f64>, Option<f64>, Option<f64>, Option<f64>)>(
-        "SELECT ST_XMin(Box3D(coverage)), ST_YMin(Box3D(coverage)), ST_XMax(Box3D(coverage)), ST_YMax(Box3D(coverage)) FROM datasets WHERE id = $1 AND coverage IS NOT NULL",
+    let row = sqlx::query_as::<_, (Option<f64>, Option<f64>, Option<f64>, Option<f64>, Option<String>)>(
+        "SELECT ST_XMin(Box3D(coverage)), ST_YMin(Box3D(coverage)), ST_XMax(Box3D(coverage)), ST_YMax(Box3D(coverage)), ST_AsText(coverage) FROM datasets WHERE id = $1 AND coverage IS NOT NULL",
     )
     .bind(dataset_id)
     .fetch_optional(pool)
     .await?
     .ok_or(OSMImportError::MissingCoverage)?;
     match row {
-        (Some(west), Some(south), Some(east), Some(north)) if west < east && south < north => {
+        (Some(west), Some(south), Some(east), Some(north), Some(coverage_wkt))
+            if west < east && south < north =>
+        {
             Ok(DatasetBounds {
                 west,
                 south,
                 east,
                 north,
+                coverage_wkt,
             })
         }
         _ => Err(OSMImportError::MissingCoverage),
     }
-}
-
-fn parse_extent(value: &str) -> Result<(f64, f64, f64, f64), OSMImportError> {
-    let inner = value
-        .strip_prefix("BOX(")
-        .and_then(|value| value.strip_suffix(')'))
-        .ok_or(OSMImportError::InvalidExtent)?;
-    let mut corners = inner.split(',');
-    let lower = corners.next().ok_or(OSMImportError::InvalidExtent)?;
-    let upper = corners.next().ok_or(OSMImportError::InvalidExtent)?;
-    if corners.next().is_some() {
-        return Err(OSMImportError::InvalidExtent);
-    }
-    let parse_pair = |pair: &str| -> Result<(f64, f64), OSMImportError> {
-        let mut values = pair.split_whitespace().map(str::parse::<f64>);
-        let x = values
-            .next()
-            .ok_or(OSMImportError::InvalidExtent)?
-            .map_err(|_| OSMImportError::InvalidExtent)?;
-        let y = values
-            .next()
-            .ok_or(OSMImportError::InvalidExtent)?
-            .map_err(|_| OSMImportError::InvalidExtent)?;
-        if values.next().is_some() || !x.is_finite() || !y.is_finite() {
-            return Err(OSMImportError::InvalidExtent);
-        }
-        Ok((x, y))
-    };
-    let (west, south) = parse_pair(lower)?;
-    let (east, north) = parse_pair(upper)?;
-    Ok((west, south, east, north))
 }
 
 pub async fn validate_import(
@@ -145,11 +118,12 @@ pub async fn validate_import(
              COUNT(*) FILTER (WHERE geom IS NULL OR ST_IsEmpty(geom))::bigint, \
              COUNT(*) FILTER (WHERE geom IS NOT NULL AND ST_SRID(geom) <> 4326)::bigint, \
              COUNT(*) FILTER (WHERE geom IS NOT NULL AND NOT ST_IsValid(geom))::bigint, \
-             ST_Extent(geom)::text \
+             COUNT(*) FILTER (WHERE geom IS NOT NULL AND NOT ST_Intersects(geom, ST_GeomFromText($1, 4326)))::bigint \
              FROM {schema}.{layer}"
         );
-        let (count, empty, wrong_srid, invalid, extent): (i64, i64, i64, i64, Option<String>) =
+        let (count, empty, wrong_srid, invalid, outside): (i64, i64, i64, i64, i64) =
             sqlx::query_as(&query)
+                .bind(&bounds.coverage_wkt)
                 .fetch_one(pool)
                 .await
                 .map_err(|error| match error {
@@ -162,16 +136,8 @@ pub async fn validate_import(
         if layer == "osm_roads" && count == 0 {
             return Err(OSMImportError::EmptyRoads);
         }
-        if let Some(extent) = extent {
-            let (west, south, east, north) = parse_extent(&extent)?;
-            let tolerance = 0.0001_f64;
-            if west < bounds.west - tolerance
-                || south < bounds.south - tolerance
-                || east > bounds.east + tolerance
-                || north > bounds.north + tolerance
-            {
-                return Err(OSMImportError::OutsideCoverage(layer));
-            }
+        if outside > 0 {
+            return Err(OSMImportError::OutsideCoverage(layer));
         }
         total_features += count;
         layers.insert(
@@ -180,7 +146,8 @@ pub async fn validate_import(
                 "feature_count": count,
                 "empty_or_null_geometry_count": empty,
                 "wrong_srid_count": wrong_srid,
-                "invalid_geometry_count": invalid
+                "invalid_geometry_count": invalid,
+                "outside_coverage_count": outside
             }),
         );
     }
@@ -206,16 +173,5 @@ mod tests {
         assert!(!validate_schema("idrisi_stage_0123;drop"));
     }
 
-    #[test]
-    fn parses_postgis_extent() {
-        assert_eq!(
-            parse_extent("BOX(107.3 -7.1,107.8 -6.7)").unwrap(),
-            (107.3, -7.1, 107.8, -6.7)
-        );
-    }
 
-    #[test]
-    fn rejects_malformed_extent() {
-        assert!(parse_extent("not an extent").is_err());
-    }
 }
