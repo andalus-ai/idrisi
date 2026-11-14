@@ -1,12 +1,12 @@
 # Initial API Contracts
 
-This document establishes proposed public API shapes. It is a design contract, not a statement that endpoints are implemented. Exact OpenAPI schemas will be added before the first API release.
+This document establishes proposed public API shapes. Exact OpenAPI schemas will be added before the first API release.
 
-Iket is the public gateway. Clients reach the configured public prefix on Iket, which routes to private Idrisi domain API endpoints under /v1. Iket handles edge authentication and traffic policies when explicitly configured; Idrisi remains responsible for domain validation and tenant/resource authorization. Never trust identity headers supplied directly by clients.
+Iket is the public gateway. Clients reach the configured public prefix on Iket, which routes control-plane requests to the private Idrisi domain API and vector-tile requests directly to the private Martin service. Iket handles edge authentication and traffic policies when explicitly configured; Idrisi remains responsible for domain validation and tenant/resource authorization. Never trust identity headers supplied directly by clients.
 
 ## Principles
 
-- Base path: `/v1`.
+- Base path: `/v1` for Idrisi domain APIs.
 - JSON for control-plane and feature APIs; standard binary/media responses for tiles and package downloads.
 - WGS 84 longitude/latitude for GeoJSON-facing coordinate values.
 - Explicit units, coordinate order, CRS, dataset version, and timestamps.
@@ -14,15 +14,38 @@ Iket is the public gateway. Clients reach the configured public prefix on Iket, 
 - Consistent errors with a machine-readable code, human-readable message, request ID, and optional validation details.
 - Bound all list sizes, geometry sizes, matrix dimensions, and execution time.
 
-## Proposed endpoints
+## Implemented catalog endpoints
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/v1/health/live` | Process liveness |
-| GET | `/v1/health/ready` | Dependency readiness |
+| GET | `/v1/catalog/datasets` | List catalog datasets |
+| GET | `/v1/catalog/datasets/{dataset_id}` | Retrieve a dataset |
+
+## Vector tile delivery
+
+Martin is the internal MVT engine. It is not a public gateway and its port must remain private. Iket routes the public tile prefix to Martin directly to avoid copying high-volume binary tile payloads through the Rust catalog API.
+
+| Public method | Public path | Upstream |
+|---|---|---|
+| GET | `/api/idrisi/tiles/{source}` | Martin TileJSON `/{source}` |
+| GET | `/api/idrisi/tiles/{source}/{z}/{x}/{y}` | Martin MVT `/{source}/{z}/{x}/{y}` |
+
+- Tile matrix is WebMercatorQuad / XYZ unless a source explicitly documents otherwise.
+- MVT responses are binary protobuf; clients should use TileJSON metadata to discover layer names, bounds, zoom range, and tile URL.
+- Only PostGIS tables in the dedicated `tiles` schema are eligible for automatic publication.
+- Martin uses a dedicated read-only database role. Never connect Martin with the catalog migration owner in production.
+- Do not publish catalog tables or arbitrary application schemas as tile sources.
+- Source identifiers are derived from Martin's configured table discovery; Idrisi will add stable catalog-to-tile source mapping before the first public data release.
+- Tile routes require Iket authentication/policy consistent with the dataset's visibility. Martin itself does not provide Idrisi tenant authorization.
+
+The tile endpoints are an engine integration contract, not a claim that production Indonesia tile data is already loaded. The `tiles` schema is initially empty.
+
+## Planned endpoints
+
+| Method | Path | Purpose |
+|---|---|---|
 | GET | `/v1/datasets` | Discover published datasets |
 | GET | `/v1/layers` | Discover available layers |
-| GET | `/v1/tiles/{z}/{x}/{y}` | Tile access (format negotiated or explicit) |
 | GET | `/v1/geocode/search` | Forward geocoding |
 | GET | `/v1/geocode/reverse` | Reverse geocoding |
 | POST | `/v1/routes` | Route calculation |
@@ -34,7 +57,7 @@ Iket is the public gateway. Clients reach the configured public prefix on Iket, 
 | GET | `/v1/offline/packages/{id}` | Package manifest and metadata |
 | GET | `/v1/offline/packages/{id}/download` | Package artifact delivery |
 
-Tile URL compatibility and MVT content negotiation must be tested against MapLibre. PMTiles may be served as a static archive with range requests rather than unpacked into individual XYZ endpoints.
+PMTiles may be served as a static archive with range requests rather than unpacked into individual XYZ endpoints.
 
 ## Route request (conceptual)
 
@@ -49,8 +72,6 @@ Tile URL compatibility and MVT content negotiation must be tested against MapLib
 ```
 
 A route response should expose normalized geometry, distance, duration, legs, maneuvers/instructions when requested, warnings, and the routing dataset/graph version. Do not leak raw Valhalla response objects as the public contract.
-
-Supported profiles should be capability-discovered. Do not promise a mode (for example, cycling or pedestrian) until the selected provider and source graph support it.
 
 ## Geocoding
 
@@ -73,7 +94,7 @@ Dataset records expose ID, name, domain, provider, version, extent, temporal cov
 }
 ```
 
-Never return stack traces, database errors, credentials, or upstream provider internals to clients.
+Never return stack traces, database errors, credentials, or upstream provider errors to clients.
 
 ## API versioning
 
