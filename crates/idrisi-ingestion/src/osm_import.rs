@@ -2,7 +2,7 @@
 use serde_json::{json, Value};
 use sqlx::PgPool;
 
-const STYLE_TEMPLATE: &str = include_str!("../../../../infrastructure/osm2pgsql/bandung.lua");
+const STYLE_TEMPLATE: &str = include_str!("../../../infrastructure/osm2pgsql/bandung.lua");
 const IMPORT_SCHEMA: &str = "tiles_import";
 
 #[derive(Debug, thiserror::Error)]
