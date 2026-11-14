@@ -19,7 +19,7 @@ Claims use `FOR UPDATE SKIP LOCKED`; workers pass an explicit allowlist of job t
 
 ## Supported job types
 
-The first worker binary supports only `osm.pbf.stage`. It downloads an allowlisted HTTPS PBF source, applies a byte limit, computes SHA-256, optionally verifies the queued checksum, and runs a bounded full-file `osmium fileinfo` inspection. The result metadata records object counts, extent, timestamps and replication metadata. This still does not mean that the data has been imported or published to Martin.
+The worker supports `osm.pbf.stage` and `osm.pbf.import`. Both download and inspect allowlisted PBF files. The import handler runs osm2pgsql flex in UUID-derived data and middle schemas, then validates required tables, geometry validity, SRID 4326, and layer extents against dataset coverage. Successful import output remains unpublished and is not visible to Martin.
 
 See [worker operations](worker.md) for deployment, configuration and the operator enqueue example.
 
@@ -33,4 +33,4 @@ See [worker operations](worker.md) for deployment, configuration and the operato
 
 ## Next work
 
-The next increment adds a separate OSM import handler that writes to a per-job staging schema, followed by geometry and coverage validation. Dataset publication and Martin-visible table swaps remain a separate, explicitly transactional operation.
+Dataset publication and Martin-visible table swaps remain a separate, explicitly transactional operation. The worker cannot access the published `tiles` schema; fixed security-definer functions provision and clean up only lease-derived staging schemas.
