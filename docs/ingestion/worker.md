@@ -87,8 +87,6 @@ Each lease attempt generates `idrisi_stage_<lease-uuid>` for flex output and `id
 | `IDRISI_OSM2PGSQL_PATH` | `/usr/bin/osm2pgsql` | osm2pgsql flex executable |
 | `IDRISI_OSM_STYLE_PATH` | `/opt/idrisi/osm2pgsql/bandung.lua` | Reviewed flex style template |
 | `IDRISI_WORKER_IMPORT_TIMEOUT_SECONDS` | 21600 | Maximum import duration |
-| `IDRISI_OSM2PGSQL_PATH` | `/usr/bin/osm2pgsql` | osm2pgsql flex executable |
-| `IDRISI_WORKER_IMPORT_TIMEOUT_SECONDS` | 21600 | Maximum import duration |
 
 ## Operational notes
 
