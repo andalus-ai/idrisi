@@ -9,11 +9,10 @@ ALTER DEFAULT PRIVILEGES FOR ROLE idrisi_ingest IN SCHEMA tiles
     GRANT SELECT ON TABLES TO martin_tiles;
 
 -- Allow the ingestion job to publish immutable version/provenance records.
-GRANT SELECT ON data_sources, datasets TO idrisi_ingest;
+GRANT SELECT ON data_sources, datasets, layers TO idrisi_ingest;
+GRANT UPDATE (status, updated_at) ON datasets TO idrisi_ingest;
+GRANT UPDATE (is_enabled, updated_at) ON layers TO idrisi_ingest;
 GRANT SELECT, INSERT ON dataset_versions TO idrisi_ingest;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO idrisi_ingest;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-    GRANT USAGE, SELECT ON SEQUENCES TO idrisi_ingest;
 
 INSERT INTO data_sources (
     name, source_type, source_uri, license_id, license_url, attribution, terms_url, metadata
