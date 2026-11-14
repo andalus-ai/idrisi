@@ -19,6 +19,7 @@ Build a vertical slice early: start the private Idrisi API, PostGIS, and Martin;
 - **Catalog:** source, dataset, version, layer, licensing, attribution, and coverage schema is implemented. The Geofabrik Java/OSM pilot source and Bandung dataset/layers are registered by migration.
 - **Vector tiles:** Martin 1.16.1 is configured as a private Compose service with a dedicated read-only database role; Iket route examples and the tile contract are committed.
 - **Ingestion pipeline:** one-shot Bandung OSM PBF acquisition, MD5 verification, SHA-256 provenance, osm2pgsql flex import, isolated importer role, and catalog version publication are implemented.
+- **TypeScript SDK:** initial renderer-neutral Fetch client for catalog and TileJSON access, bearer-token handling, Iket-routed vector sources, and synchronous MapLibre request-transform adapter. Build and unit tests are wired into CI.
 - **Reference client:** static MapLibre GL JS viewer with Bandung camera, four layer toggles, Iket base URL and in-memory bearer-token input, and OSM attribution is implemented.
 - **Not yet demonstrated:** live Compose startup, execution of the OSM import, real non-empty TileJSON/MVT response, live MapLibre rendering against populated data, and Iket end-to-end gateway test. The `tiles` schema remains empty until an operator runs the import.
 
