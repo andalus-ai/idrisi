@@ -36,11 +36,11 @@ Idrisi is intended to be reusable by applications such as Jezaku without couplin
 - **Client rendering:** MapLibre GL JS for the reference web client; mobile SDKs and other clients consume the same APIs.
 - **Operations:** Docker Compose for the first reproducible self-hosted deployment, with documented persistent volumes, backups, health checks, and observability.
 
-See [Architecture](docs/architecture/overview.md), [Iket integration](docs/integrations/iket.md), [Bandung OSM pilot ingestion](docs/ingestion/osm-bandung-pilot.md), [Implementation Plan](docs/roadmap/implementation-plan.md), and [AGENTS.md](AGENTS.md).
+See [Architecture](docs/architecture/overview.md), [Iket integration](docs/integrations/iket.md), [Bandung OSM pilot ingestion](docs/ingestion/osm-bandung-pilot.md), [MapLibre viewer](examples/maplibre/README.md), [Implementation Plan](docs/roadmap/implementation-plan.md), and [AGENTS.md](AGENTS.md).
 
 ## Repository status
 
-The repository contains the Rust domain API, PostGIS catalog migrations, a private Martin vector-tile service, Iket route examples, and a one-shot Bandung OSM ingestion pipeline. The pilot dataset is registered in the catalog but has not yet been imported in a live environment; the `tiles` schema remains empty until an operator runs the ingestion script. Incremental updates, MapLibre rendering, routing, geocoding, and raster serving remain planned.
+The repository contains the Rust domain API, PostGIS catalog migrations, a private Martin vector-tile service, Iket route examples, a one-shot Bandung OSM ingestion pipeline, and a MapLibre reference viewer. The pilot dataset is registered in the catalog but has not yet been imported in a live environment; the `tiles` schema remains empty until an operator runs the ingestion script. Incremental updates, MapLibre rendering, routing, geocoding, and raster serving remain planned.
 
 ## Development
 
@@ -56,14 +56,14 @@ Do not download or commit large geographic datasets into Git. Store source files
 
 ## Local development stack
 
-A local PostGIS + Idrisi API + Martin stack is available through Docker Compose. See [Local Development](docs/operations/local-development.md) for prerequisites, startup commands, endpoints, and current limitations.
+A local PostGIS + Idrisi API + Martin + MapLibre reference viewer stack is available through Docker Compose. See [Local Development](docs/operations/local-development.md) for prerequisites, startup commands, endpoints, and current limitations.
 
 ```sh
 cp .env.example .env
 docker compose up --build -d
 ```
 
-The stack starts infrastructure only; it does not automatically download or import geographic datasets.
+The stack starts the infrastructure and static reference viewer; it does not automatically download or import geographic datasets. Open http://localhost:8090 and configure the Iket URL/token after running the OSM import.
 
 ## Data and attribution
 
