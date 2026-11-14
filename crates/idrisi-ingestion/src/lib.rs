@@ -21,6 +21,9 @@ pub struct Osm2pgsqlConfig {
     pub port: u16,
     pub username: String,
     pub schema: String,
+    pub middle_schema: String,
+    pub table_prefix: String,
+    pub bbox: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,6 +66,9 @@ impl Osm2pgsqlConfig {
         validate_identifier(&self.database, "database")?;
         validate_identifier(&self.username, "username")?;
         validate_identifier(&self.schema, "schema")?;
+        validate_identifier(&self.middle_schema, "middle_schema")?;
+        validate_identifier(&self.table_prefix, "table_prefix")?;
+        validate_bbox(&self.bbox)?;
         if self.host.trim().is_empty() {
             return Err(ConfigError::EmptyField("host"));
         }
@@ -82,10 +88,14 @@ impl Osm2pgsqlConfig {
             OsString::from(self.host.as_str()),
             OsString::from("--port"),
             OsString::from(self.port.to_string()),
-            OsString::from("--username"),
+            OsString::from("-U"),
             OsString::from(self.username.as_str()),
-            OsString::from("--schema"),
-            OsString::from(self.schema.as_str()),
+            OsString::from("--middle-schema"),
+            OsString::from(self.middle_schema.as_str()),
+            OsString::from("--prefix"),
+            OsString::from(self.table_prefix.as_str()),
+            OsString::from("--bbox"),
+            OsString::from(self.bbox.as_str()),
             self.pbf_path.as_os_str().to_owned(),
         ];
 
@@ -99,6 +109,26 @@ impl Osm2pgsqlConfig {
 fn validate_path(path: &std::path::Path, field: &'static str) -> Result<(), ConfigError> {
     if path.as_os_str().is_empty() {
         return Err(ConfigError::InvalidPath(field));
+    }
+    Ok(())
+}
+
+fn validate_bbox(value: &str) -> Result<(), ConfigError> {
+    let values = value
+        .split(',')
+        .map(str::parse::<f64>)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| ConfigError::InvalidIdentifier("bbox"))?;
+    if values.len() != 4
+        || values.iter().any(|number| !number.is_finite())
+        || values[0] < -180.0
+        || values[2] > 180.0
+        || values[0] >= values[2]
+        || values[1] < -90.0
+        || values[3] > 90.0
+        || values[1] >= values[3]
+    {
+        return Err(ConfigError::InvalidIdentifier("bbox"));
     }
     Ok(())
 }
@@ -129,7 +159,10 @@ mod tests {
             host: "postgis".into(),
             port: 5432,
             username: "idrisi_import".into(),
-            schema: "osm_stage_12345678".into(),
+            schema: "idrisi_stage_1234567890abcdef1234567890abcdef".into(),
+            middle_schema: "idrisi_mid_1234567890abcdef1234567890abcdef".into(),
+            table_prefix: "j1234567890abcdef".into(),
+            bbox: "107.35,-7.15,107.85,-6.75".into(),
         }
     }
 
@@ -138,6 +171,9 @@ mod tests {
         let invocation = config().invocation().expect("valid config");
         assert_eq!(invocation.program, PathBuf::from("/usr/bin/osm2pgsql"));
         assert!(invocation.args.iter().any(|arg| arg == "--output=flex"));
+        assert!(invocation.args.iter().any(|arg| arg == "--middle-schema"));
+        assert!(invocation.args.iter().any(|arg| arg == "--prefix"));
+        assert!(invocation.args.iter().any(|arg| arg == "--bbox"));
         assert!(invocation
             .args
             .iter()
@@ -163,6 +199,13 @@ mod tests {
             config.invocation().unwrap_err(),
             ConfigError::InvalidIdentifier("schema")
         );
+    }
+
+    #[test]
+    fn rejects_invalid_bbox() {
+        let mut config = config();
+        config.bbox = "107,-7,106,-6".into();
+        assert_eq!(config.invocation().unwrap_err(), ConfigError::InvalidIdentifier("bbox"));
     }
 
     #[test]
