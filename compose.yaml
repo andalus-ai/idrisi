@@ -47,7 +47,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: ["/usr/local/bin/idrisi-worker"]
+    entrypoint: ["/usr/local/bin/idrisi-worker"]
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://idrisi_ingest:${IDRISI_INGEST_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-idrisi}
