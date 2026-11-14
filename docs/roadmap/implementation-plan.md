@@ -43,7 +43,7 @@ Deliverables:
 
 Acceptance:
 - One documented command starts the baseline stack.
-- Gateway reports dependency readiness.
+- Idrisi API reports dependency readiness; Iket routes to it through the configured private upstream.
 - PostGIS spatial query and a test vector tile work end-to-end.
 
 ## Phase 2 — Indonesia OSM ingestion and catalog
