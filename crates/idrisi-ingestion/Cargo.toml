@@ -20,3 +20,7 @@ uuid.workspace = true
 [[bin]]
 name = "idrisi-worker"
 path = "src/bin/worker.rs"
+
+[[bin]]
+name = "idrisi-publisher"
+path = "src/bin/publisher.rs"

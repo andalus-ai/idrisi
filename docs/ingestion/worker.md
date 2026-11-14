@@ -68,7 +68,23 @@ WHERE dataset.slug = 'osm-bandung-pilot'
 ON CONFLICT (idempotency_key) DO NOTHING;
 ```
 
-Each lease attempt generates `idrisi_stage_<lease-uuid>` for flex output and `idrisi_mid_<lease-uuid>` for osm2pgsql slim state. Fixed `SECURITY DEFINER` functions create/drop only these UUID-derived names; job payloads cannot supply schema names or DDL. Validation checks all four expected layers, non-empty roads, null/empty/invalid geometry, SRID 4326, and extents inside dataset coverage. Successful staging schemas remain unpublished and invisible to Martin. Failed jobs drop their attempt schemas; hard process loss may leave orphan schemas for retention cleanup.
+Each lease attempt generates `idrisi_stage_<lease-uuid>` for flex output and `idrisi_mid_<lease-uuid>` for osm2pgsql slim state. Fixed `SECURITY DEFINER` functions create/drop only these UUID-derived names; job payloads cannot supply schema names or DDL. Validation checks all four expected layers, non-empty roads, null/empty/invalid geometry, SRID 4326, and feature geometries intersecting the registered dataset coverage. Successful staging schemas remain unpublished and invisible to Martin. Failed jobs drop their attempt schemas; hard process loss may leave orphan schemas for retention cleanup.
+
+
+## Dataset publisher
+
+Publication is performed by the separate `idrisi-publisher` binary and Compose service. It claims only `osm.dataset.publish` jobs using the `idrisi_publish` database login. The publisher revalidates the referenced import's private schema and dataset coverage, then invokes the fixed `idrisi_publish_osm_dataset` database function.
+
+The database function performs table promotion, archive moves, dataset-version recording, dataset/layer state updates, and publication-job completion in one transaction. The publisher role has queue-update privileges and read access to staging tables; it has no direct DDL privileges on the live `tiles` schema. See [Dataset publication](publication.md) for queue SQL, atomicity guarantees, role setup, and existing-volume upgrade instructions.
+
+Publisher environment variables:
+
+| Variable | Default | Purpose |
+|---|---:|---|
+| `IDRISI_PUBLISH_DB_PASSWORD` | required | Dedicated publisher database login password |
+| `IDRISI_PUBLISHER_POLL_SECONDS` | 5 | Queue polling interval |
+| `IDRISI_PUBLISHER_LEASE_SECONDS` | 300 | Publication job lease duration |
+| `IDRISI_PUBLISHER_HEARTBEAT_SECONDS` | 30 | Lease heartbeat interval |
 
 ## Worker configuration
 
