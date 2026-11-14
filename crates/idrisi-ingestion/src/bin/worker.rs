@@ -27,6 +27,9 @@ struct Config {
     lease_duration: Duration,
     heartbeat_interval: Duration,
     request_timeout: Duration,
+    osmium_bin: String,
+    inspection_timeout: Duration,
+    max_inspection_report_bytes: usize,
     osmium_executable: PathBuf,
     inspection_timeout: Duration,
     osm2pgsql_executable: PathBuf,
@@ -81,6 +84,8 @@ impl Config {
                 .unwrap_or_else(|_| "14400".to_owned())
                 .parse()?,
         );
+        let osmium_bin = env::var("IDRISI_WORKER_OSMIUM_BIN")
+            .unwrap_or_else(|_| "/usr/bin/osmium".to_owned());
         let osmium_executable = PathBuf::from(
             env::var("IDRISI_OSMIUM_PATH").unwrap_or_else(|_| "/usr/bin/osmium".to_owned()),
         );
@@ -103,12 +108,16 @@ impl Config {
         let pg_database = env::var("PGDATABASE").unwrap_or_else(|_| "idrisi".to_owned());
         let pg_username = env::var("PGUSER").unwrap_or_else(|_| "idrisi_ingest".to_owned());
         let pg_password = env::var("PGPASSWORD")?;
+        let max_inspection_report_bytes = env::var("IDRISI_WORKER_MAX_INSPECTION_REPORT_BYTES")
+            .unwrap_or_else(|_| (2 * 1024 * 1024).to_string())
+            .parse::<usize>()?;
         if max_source_bytes == 0
             || poll_interval.is_zero()
             || heartbeat_interval.is_zero()
             || request_timeout.is_zero()
             || inspection_timeout.is_zero()
             || import_timeout.is_zero()
+            || max_inspection_report_bytes == 0
             || osmium_executable.as_os_str().is_empty()
             || osm2pgsql_executable.as_os_str().is_empty()
             || pg_port == 0
@@ -126,6 +135,9 @@ impl Config {
             lease_duration,
             heartbeat_interval,
             request_timeout,
+            osmium_bin,
+            inspection_timeout,
+            max_inspection_report_bytes,
             osmium_executable,
             inspection_timeout,
             osm2pgsql_executable,
@@ -238,9 +250,13 @@ async fn process_job(
             return Err("source must be an .osm.pbf file".to_owned());
         }
 
-        repository.set_stage(job_id, lease_token, JobStage::Acquiring, 10)
-            .await.map_err(|_| "job stage update failed".to_owned())?;
-        tokio::fs::create_dir_all(&attempt_dir).await
+        repository
+            .set_stage(job_id, lease_token, JobStage::Acquiring, 10)
+            .await
+            .map_err(|_| "job stage update failed".to_owned())?;
+
+        tokio::fs::create_dir_all(&attempt_dir)
+            .await
             .map_err(|_| "could not create job staging directory".to_owned())?;
         let destination = attempt_dir.join("source.osm.pbf");
         let policy = DownloadPolicy {
@@ -248,8 +264,14 @@ async fn process_job(
             max_bytes: config.max_source_bytes,
             request_timeout: config.request_timeout,
         };
-        let receipt = download(&job.source_uri, &destination, &policy).await
+        let receipt = download(&job.source_uri, &destination, &policy)
+            .await
             .map_err(|_| "source acquisition failed".to_owned())?;
+
+        repository
+            .set_stage(job_id, lease_token, JobStage::Checksum, 80)
+            .await
+            .map_err(|_| "job stage update failed".to_owned())?;
 
         repository.set_stage(job_id, lease_token, JobStage::Checksum, 80)
             .await.map_err(|_| "job stage update failed".to_owned())?;
@@ -278,6 +300,13 @@ async fn process_job(
             "bytes": receipt.bytes,
             "sha256": receipt.sha256,
             "pbf": {
+                "file_size_bytes": inspection.file_size_bytes,
+                "nodes": inspection.nodes,
+                "ways": inspection.ways,
+                "relations": inspection.relations,
+                "bbox": inspection.bbox,
+            "source_uri": job.source_uri,
+            "inspection": {
                 "file_size_bytes": inspection.file_size_bytes,
                 "node_count": inspection.node_count,
                 "way_count": inspection.way_count,
