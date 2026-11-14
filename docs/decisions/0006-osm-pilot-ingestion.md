@@ -11,7 +11,7 @@ The OSM import should use a mature upstream parser and geometry assembler rather
 
 ## Decision
 
-- Use Geofabrik's Java regional PBF as the initial source and constrain the import to a buffered Bandung-area bbox.
+- Use Geofabrik's Java regional PBF snapshot dated 2026-11-12 as the initial source and constrain the import to a buffered Bandung-area bbox.
 - Use osm2pgsql 2.x flex output with a repository-owned Lua style.
 - Publish a deliberately small set of normalized PostGIS tables in the tiles schema: roads, places, buildings, and water.
 - Store osm2pgsql slim-mode middle tables in a separate tiles_import schema.
