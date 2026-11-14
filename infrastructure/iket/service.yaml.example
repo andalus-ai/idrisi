@@ -32,3 +32,21 @@ services:
         enabled: true
         backend:
           - url_pattern: "/health/{rest:.*}"
+
+  - name: "Idrisi Vector Tiles"
+    description: "Private Martin-backed vector tile delivery"
+    host: "http://martin:3000"
+    tags: ["private", "idrisi", "tiles", "mvt"]
+    group: "idrisi"
+    routes:
+      - path: "/api/idrisi/tiles/{rest:.*}"
+        methods: ["GET"]
+        name: "Idrisi Vector Tiles"
+        description: "TileJSON and XYZ MVT requests routed directly to Martin"
+        tags: ["idrisi", "tiles"]
+        priority: 120
+        requireAuth: true
+        stripPath: true
+        enabled: true
+        backend:
+          - url_pattern: "/{rest:.*}"
