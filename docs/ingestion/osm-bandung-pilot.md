@@ -15,13 +15,13 @@ This is a base-map proof of concept, not a complete OSM cartographic schema. It 
 
 ## Source and license
 
-- Source: Geofabrik Java extract, `https://download.geofabrik.de/asia/indonesia/java-latest.osm.pbf`
+- Source: Geofabrik Java extract (2026-11-12 snapshot), `https://download.geofabrik.de/asia/indonesia/java-261112.osm.pbf`
 - Format: OSM PBF
 - License: Open Data Commons Open Database License (ODbL) 1.0
 - Required attribution: `© OpenStreetMap contributors`
 - Attribution/copyright: `https://www.openstreetmap.org/copyright`
 
-The script verifies the published Geofabrik MD5 sidecar and calculates a SHA-256 digest for the immutable Idrisi dataset version. Review the current OSM/Geofabrik terms before redistribution. OSM-derived databases and produced works have different ODbL obligations; this workflow does not replace legal review.
+The script pins the 2026-11-12 Java snapshot and verifies its published Geofabrik MD5 sidecar and calculates a SHA-256 digest for the immutable Idrisi dataset version. Review the current OSM/Geofabrik terms before redistribution. OSM-derived databases and produced works have different ODbL obligations; this workflow does not replace legal review.
 
 ## Pilot bounds
 
@@ -34,7 +34,7 @@ The osm2pgsql bbox filter is a coarse filter and may cut features at the boundar
 - A running Idrisi Compose stack with migrations applied.
 - A clean pilot database: the script refuses to overwrite existing pilot tables.
 - `osm2pgsql` 2.x with flex output, `psql`, `curl`, `md5sum`, and `sha256sum`.
-- Enough memory and SSD capacity for the Java PBF and PostGIS import. Measure actual use on the deployment host; do not infer production sizing from the PBF download size.
+- Enough memory and SSD capacity for the pinned Java PBF snapshot and PostGIS import. Measure actual use on the deployment host; do not infer production sizing from the PBF download size.
 
 The first run of the Postgres volume must have both `MARTIN_DB_PASSWORD` and `IDRISI_INGEST_DB_PASSWORD` set before starting the stack. Existing volumes need the `idrisi_ingest` role created manually, just like the existing Martin role.
 
