@@ -25,7 +25,11 @@ services:
     restart: unless-stopped
     environment:
       IDRISI_API_BIND: 0.0.0.0:8080
+      DATABASE_URL: postgres://${POSTGRES_USER:-idrisi}:${POSTGRES_PASSWORD:-idrisi_dev_only_change_me}@postgres:5432/${POSTGRES_DB:-idrisi}
       RUST_LOG: ${RUST_LOG:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
     expose:
       - "8080"
     networks:
