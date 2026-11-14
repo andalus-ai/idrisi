@@ -443,5 +443,3 @@ mod acquisition_tests {
     }
 }
 
-
-pub mod queue;
