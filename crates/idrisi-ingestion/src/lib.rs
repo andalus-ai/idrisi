@@ -5,6 +5,7 @@
 //! never through command-line arguments or persisted job metadata.
 
 pub mod repository;
+pub mod staging;
 pub mod inspector;
 pub mod worker;
 
