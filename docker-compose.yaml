@@ -40,6 +40,18 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
 
+  map-viewer:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - martin
+    volumes:
+      - ./examples/maplibre:/usr/share/nginx/html:ro
+    ports:
+      - "127.0.0.1:${MAP_VIEWER_PORT:-8090}:80"
+    networks:
+      - idrisi-internal
+
   martin:
     image: ghcr.io/maplibre/martin:1.16.1
     restart: unless-stopped
