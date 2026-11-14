@@ -113,18 +113,18 @@ BEGIN
        OR source_job.job_type <> 'osm.pbf.import'
        OR source_job.status <> 'succeeded'
        OR source_job.dataset_id <> publish_job.dataset_id
-       OR source_job.result_metadata->>'state' <> 'imported_validated_unpublished'
-       OR source_job.result_metadata #>> '{import,validation}' <> 'passed' THEN
+       OR source_job.result_metadata->>'state' IS DISTINCT FROM 'imported_validated_unpublished'
+       OR source_job.result_metadata #>> '{import,validation}' IS DISTINCT FROM 'passed' THEN
         RAISE EXCEPTION 'source import job is not a validated unpublished import';
     END IF;
 
     data_schema := source_job.staging_schema;
     IF data_schema IS NULL OR data_schema !~ '^idrisi_stage_[0-9a-f]{32}$'
-       OR source_job.result_metadata #>> '{staging,data_schema}' <> data_schema THEN
+       OR source_job.result_metadata #>> '{staging,data_schema}' IS DISTINCT FROM data_schema THEN
         RAISE EXCEPTION 'source import staging schema is invalid';
     END IF;
     middle_schema := 'idrisi_mid_' || substring(data_schema FROM length('idrisi_stage_') + 1);
-    IF source_job.result_metadata #>> '{staging,middle_schema}' <> middle_schema THEN
+    IF source_job.result_metadata #>> '{staging,middle_schema}' IS DISTINCT FROM middle_schema THEN
         RAISE EXCEPTION 'source import middle schema is invalid';
     END IF;
 
