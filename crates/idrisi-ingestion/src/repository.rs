@@ -14,6 +14,7 @@ pub struct ClaimedJob {
     pub job_type: String,
     pub dataset_id: Uuid,
     pub dataset_version_id: Option<Uuid>,
+    pub source_job_id: Option<Uuid>,
     pub source_uri: String,
     pub source_checksum: Option<String>,
     pub importer_name: String,
@@ -138,7 +139,7 @@ impl JobRepository {
                FROM candidate
                WHERE job.id = candidate.id
                RETURNING job.id, job.job_type, job.dataset_id, job.dataset_version_id,
-                         job.source_uri, job.source_checksum, job.importer_name,
+                         job.source_job_id, job.source_uri, job.source_checksum, job.importer_name,
                          job.importer_version, job.attempt_count, job.max_attempts,
                          job.staging_schema, job.lease_token"#,
         )
@@ -235,10 +236,14 @@ impl JobRepository {
         lease_token: Uuid,
         result_metadata: serde_json::Value,
     ) -> Result<(), LeaseError> {
+        let staging_schema = result_metadata
+            .pointer("/staging/data_schema")
+            .and_then(serde_json::Value::as_str);
         let result = sqlx::query(
             r#"UPDATE ingestion_jobs
                SET status = 'succeeded', stage = 'complete', progress_percent = 100,
-                   result_metadata = $3, finished_at = now(), heartbeat_at = now(),
+                   result_metadata = $3, staging_schema = COALESCE($4, staging_schema),
+                   finished_at = now(), heartbeat_at = now(),
                    lease_owner = NULL, lease_token = NULL, lease_expires_at = NULL,
                    updated_at = now()
                WHERE id = $1 AND status = 'running' AND lease_token = $2
@@ -247,6 +252,7 @@ impl JobRepository {
         .bind(job_id)
         .bind(lease_token)
         .bind(result_metadata)
+        .bind(staging_schema)
         .execute(&self.pool)
         .await?;
         ensure_one_row(result.rows_affected())
