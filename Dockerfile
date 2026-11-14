@@ -20,6 +20,7 @@ RUN apt-get update \
     && chown -R idrisi:idrisi /var/lib/idrisi
 COPY --from=builder /app/target/release/idrisi-api /usr/local/bin/idrisi-api
 COPY --from=builder /app/target/release/idrisi-worker /usr/local/bin/idrisi-worker
+COPY --from=builder /app/target/release/idrisi-publisher /usr/local/bin/idrisi-publisher
 COPY infrastructure/osm2pgsql/bandung.lua /opt/idrisi/osm2pgsql/bandung.lua
 
 USER 10001:10001
