@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Idrisi — Bandung Map Pilot</title>
+  <link href="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.css" rel="stylesheet">
+  <style>
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background:#101820; color:#e8eef2; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; display:grid; grid-template-rows:auto 1fr; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:.85rem 1rem; background:#17232d; border-bottom:1px solid #344653; }
+    h1 { margin:0; font-size:1.05rem; letter-spacing:.02em; }
+    .sub { color:#aabac5; font-size:.78rem; margin-top:.2rem; }
+    main { min-height:0; display:grid; grid-template-columns:300px minmax(0,1fr); }
+    aside { padding:1rem; background:#17232d; border-right:1px solid #344653; overflow:auto; }
+    label { display:block; font-size:.8rem; color:#bdcbd4; margin:.85rem 0 .35rem; }
+    input { width:100%; border:1px solid #496070; border-radius:6px; background:#101820; color:#fff; padding:.6rem; }
+    button { cursor:pointer; border:1px solid #496070; border-radius:6px; background:#263b49; color:#fff; padding:.55rem .75rem; }
+    button:hover { background:#345264; }
+    .row { display:flex; gap:.5rem; align-items:center; }
+    .row button { flex:0 0 auto; }
+    .layers { display:grid; gap:.65rem; margin-top:1rem; }
+    .layers label { display:flex; align-items:center; gap:.55rem; margin:0; font-size:.9rem; }
+    .layers input { width:auto; }
+    #map { min-height:420px; height:100%; }
+    #status { font-size:.78rem; color:#b9c8d1; line-height:1.5; margin-top:1rem; overflow-wrap:anywhere; }
+    .attribution { color:#9eb0bb; font-size:.72rem; margin-top:1rem; line-height:1.45; }
+    .attribution a { color:#b8d8e8; }
+    @media(max-width:700px) {
+      main { grid-template-columns:1fr; grid-template-rows:auto minmax(55vh,1fr); }
+      aside { border-right:0; border-bottom:1px solid #344653; }
+      #map { min-height:55vh; }
+      header { align-items:flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div><h1>Idrisi · Bandung Map Pilot</h1><div class="sub">MapLibre GL JS · vector tiles via Iket / Martin</div></div>
+    <button id="zoom-bandung" type="button">Reset to Bandung</button>
+  </header>
+  <main>
+    <aside>
+      <label for="gateway">Iket public base URL</label>
+      <input id="gateway" value="/api/idrisi" autocomplete="url" spellcheck="false">
+      <label for="token">Bearer token (kept in this tab only)</label>
+      <div class="row"><input id="token" type="password" autocomplete="off" placeholder="Optional if gateway allows anonymous access"><button id="apply" type="button">Apply</button></div>
+      <div class="layers" aria-label="Map layers">
+        <label><input type="checkbox" data-layer="roads" checked> Roads</label>
+        <label><input type="checkbox" data-layer="places" checked> Places &amp; POIs</label>
+        <label><input type="checkbox" data-layer="buildings" checked> Buildings</label>
+        <label><input type="checkbox" data-layer="water" checked> Water</label>
+      </div>
+      <div id="status" role="status" aria-live="polite">Waiting for map initialization.</div>
+      <div class="attribution">Map data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a>. Data licensed under ODbL. This pilot is for visualization and testing, not authoritative navigation.</div>
+    </aside>
+    <div id="map" aria-label="Interactive Bandung map"></div>
+  </main>
+  <script src="https://unpkg.com/maplibre-gl@5.6.2/dist/maplibre-gl.js"></script>
+  <script>
+    (() => {
+      const status = document.getElementById('status');
+      const gateway = document.getElementById('gateway');
+      const tokenInput = document.getElementById('token');
+      const layerVisibility = { roads: true, places: true, buildings: true, water: true };
+      let bearer = '';
+      let map;
+
+      const definitions = [
+        { id:'water-fill', source:'osm_water', group:'water', type:'fill', paint:{'fill-color':'#438db5','fill-opacity':0.62}, filter:['==',['geometry-type'],'Polygon'] },
+        { id:'water-line', source:'osm_water', group:'water', type:'line', paint:{'line-color':'#438db5','line-width':1.4}, filter:['==',['geometry-type'],'LineString'] },
+        { id:'buildings-fill', source:'osm_buildings', group:'buildings', type:'fill', paint:{'fill-color':'#a9a49a','fill-opacity':0.62}, filter:['==',['geometry-type'],'Polygon'] },
+        { id:'roads-casing', source:'osm_roads', group:'roads', type:'line', paint:{'line-color':'#27343d','line-width':['interpolate',['linear'],['zoom'],5,1,14,5,18,9]}, layout:{'line-cap':'round','line-join':'round'} },
+        { id:'roads-line', source:'osm_roads', group:'roads', type:'line', paint:{'line-color':'#e6d6ad','line-width':['interpolate',['linear'],['zoom'],5,0.5,14,2,18,4]}, layout:{'line-cap':'round','line-join':'round'} },
+        { id:'places-circle', source:'osm_places', group:'places', type:'circle', paint:{'circle-radius':['interpolate',['linear'],['zoom'],8,2,16,5], 'circle-color':'#f0a84b','circle-stroke-color':'#30281e','circle-stroke-width':1} }
+      ];
+
+      function baseUrl() {
+        const raw = gateway.value.trim().replace(/\/+$/, '');
+        return raw || '/api/idrisi';
+      }
+      function transformRequest(url) {
+        const headers = bearer ? { Authorization: 'Bearer ' + bearer } : {};
+        return { url, headers };
+      }
+      function setStatus(message) { status.textContent = message; }
+      function sourceUrl(name) { return baseUrl() + '/tiles/' + name; }
+
+      function buildMap() {
+        if (map) map.remove();
+        map = new maplibregl.Map({
+          container:'map',
+          style:{ version:8, sources:{}, layers:[
+            { id:'background', type:'background', paint:{'background-color':'#dce4df'} }
+          ]},
+          center:[107.6098,-6.9147],
+          zoom:11,
+          minZoom:3,
+          maxZoom:19,
+          transformRequest
+        });
+        map.addControl(new maplibregl.NavigationControl({visualizePitch:true}), 'top-right');
+        map.addControl(new maplibregl.ScaleControl({maxWidth:120, unit:'metric'}), 'bottom-right');
+        map.on('load', () => {
+          const sources = ['osm_water','osm_buildings','osm_roads','osm_places'];
+          for (const name of sources) {
+            map.addSource(name, { type:'vector', url:sourceUrl(name) });
+          }
+          for (const item of definitions) {
+            const layer = {
+              id:item.id, type:item.type, source:item.source,
+              'source-layer':item.source,
+              paint:item.paint
+            };
+            if (item.layout) layer.layout = item.layout;
+            if (item.filter) layer.filter = item.filter;
+            map.addLayer(layer);
+          }
+          for (const group of Object.keys(layerVisibility)) setGroupVisibility(group, layerVisibility[group]);
+          setStatus('Map ready. Waiting for vector tile metadata/data from Iket. If layers remain empty, verify ingestion, gateway route, authorization, and CORS.');
+        });
+        map.on('error', event => {
+          const message = event && event.error && event.error.message ? event.error.message : 'Unknown map request error';
+          setStatus('Map request error: ' + message + '. Check the Iket URL/token and browser network console.');
+        });
+      }
+
+      function setGroupVisibility(group, visible) {
+        layerVisibility[group] = visible;
+        if (!map) return;
+        for (const item of definitions.filter(entry => entry.group === group)) {
+          if (map.getLayer(item.id)) map.setLayoutProperty(item.id, 'visibility', visible ? 'visible' : 'none');
+        }
+      }
+
+      document.querySelectorAll('[data-layer]').forEach(input => {
+        input.addEventListener('change', () => setGroupVisibility(input.dataset.layer, input.checked));
+      });
+      document.getElementById('apply').addEventListener('click', () => {
+        bearer = tokenInput.value.trim();
+        buildMap();
+        setStatus('Reconnecting to ' + baseUrl() + '/tiles/*');
+      });
+      document.getElementById('zoom-bandung').addEventListener('click', () => {
+        if (map) map.flyTo({ center:[107.6098,-6.9147], zoom:11, pitch:0, bearing:0 });
+      });
+      buildMap();
+    })();
+  </script>
+</body>
+</html>

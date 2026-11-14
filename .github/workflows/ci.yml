@@ -19,8 +19,19 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+      - name: Prepare local Compose environment
+        run: cp .env.example .env
       - name: Compose config
-        run: docker compose config --quiet
+        run: docker compose -f docker-compose.yaml config --quiet
+      - name: Ingestion and smoke-test script syntax
+        run: |
+          bash -n scripts/ingest/osm-bandung.sh
+          bash -n scripts/smoke/test-vector-tiles.sh
+      - name: TypeScript SDK
+        working-directory: sdks/typescript
+        run: |
+          npm install --no-audit --no-fund
+          npm test
       - name: Format
         run: cargo fmt --all -- --check
       - name: Clippy

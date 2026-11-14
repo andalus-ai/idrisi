@@ -64,6 +64,10 @@ Iket is the only public gateway and is maintained independently at https://githu
 
 Do not create a second public gateway inside Idrisi. The gateway should not contain heavy geospatial algorithms.
 
+### Ingestion orchestration
+
+Long-running data acquisition and processing use a durable PostgreSQL job queue with lease-based claims, worker heartbeats, bounded retries, and worker-identity fencing. Queue records contain declarative job payloads only; credentials and executable commands remain in worker configuration. Public job submission is deferred until an authenticated operator API and concrete job handlers are available.
+
 ### Dataset and layer catalog
 
 Stores dataset metadata, layer definitions, source attribution, license, coverage, temporal validity, versions, publication state, and service capabilities. PostGIS is the initial metadata and spatial query store.

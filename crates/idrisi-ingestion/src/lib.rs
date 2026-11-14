@@ -442,3 +442,6 @@ mod acquisition_tests {
         assert!(matches!(result, Err(DownloadError::InvalidPolicy)));
     }
 }
+
+
+pub mod queue;

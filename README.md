@@ -36,21 +36,24 @@ Idrisi is intended to be reusable by applications such as Jezaku without couplin
 - **Client rendering:** MapLibre GL JS for the reference web client; mobile SDKs and other clients consume the same APIs.
 - **Operations:** Docker Compose for the first reproducible self-hosted deployment, with documented persistent volumes, backups, health checks, and observability.
 
-See [Architecture](docs/architecture/overview.md), [Iket integration](docs/integrations/iket.md), [Implementation Plan](docs/roadmap/implementation-plan.md), and [AGENTS.md](AGENTS.md).
+See [Architecture](docs/architecture/overview.md), [Iket integration](docs/integrations/iket.md), [Bandung OSM pilot ingestion](docs/ingestion/osm-bandung-pilot.md), [MapLibre viewer](examples/maplibre/README.md), [Implementation Plan](docs/roadmap/implementation-plan.md), [Phase 1 infrastructure](docs/operations/phase-1-infrastructure.md), and [AGENTS.md](AGENTS.md).
 
 ## Repository status
 
-The repository contains the Rust domain API, PostGIS catalog migrations, a private Martin vector-tile service, and Iket route examples. The tile schema is currently empty: no Indonesia OSM or other production map dataset has been imported yet. Routing, geocoding, raster serving, and ingestion orchestration remain planned.
+The repository contains the Rust domain API, PostGIS catalog migrations, a private Martin vector-tile service, Iket route examples, a one-shot Bandung OSM ingestion pipeline, and a MapLibre reference viewer. The pilot dataset is registered in the catalog but has not yet been imported in a live environment; the `tiles` schema remains empty until an operator runs the ingestion script. Incremental updates, MapLibre rendering, routing, geocoding, and raster serving remain planned.
 
 ## Development
 
-The first implementation milestone will establish:
+The local stack is defined by the single canonical `compose.yaml` file. It starts PostgreSQL/PostGIS, the Rust API, Martin, and the static reference viewer.
 
-- A Rust workspace and shared configuration conventions
-- A local Docker Compose environment with PostgreSQL/PostGIS
-- A private Rust domain API skeleton and health/readiness endpoints
-- OpenAPI contracts and integration test conventions
-- A small Indonesia regional data-ingestion proof of concept
+```sh
+cp .env.example .env
+# Replace development passwords before starting.
+docker compose config --quiet
+docker compose up --build -d
+```
+
+The stack starts infrastructure and the static reference viewer; it does not automatically download or import geographic datasets. Open http://127.0.0.1:8090 and configure the Iket URL/token after running the OSM import. See [Local Development](docs/operations/local-development.md) and [Phase 1 Infrastructure](docs/operations/phase-1-infrastructure.md).
 
 Do not download or commit large geographic datasets into Git. Store source files, generated tiles, routing graphs, and raster assets in configured data volumes or object storage.
 

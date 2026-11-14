@@ -2,9 +2,12 @@
 set -eu
 
 : "${MARTIN_DB_PASSWORD:?MARTIN_DB_PASSWORD must be set}"
+: "${IDRISI_INGEST_DB_PASSWORD:?IDRISI_INGEST_DB_PASSWORD must be set}"
 
 psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
   --set=ON_ERROR_STOP=1 \
-  --set=martin_password="$MARTIN_DB_PASSWORD" <<'SQL'
+  --set=martin_password="$MARTIN_DB_PASSWORD" \
+  --set=ingest_password="$IDRISI_INGEST_DB_PASSWORD" <<'SQL'
 SELECT format('CREATE ROLE martin_tiles LOGIN PASSWORD %L', :'martin_password') \gexec
+SELECT format('CREATE ROLE idrisi_ingest LOGIN PASSWORD %L', :'ingest_password') \gexec
 SQL
