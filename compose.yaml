@@ -1,0 +1,79 @@
+# Canonical local/self-hosted Compose deployment.
+# Public ingress belongs in Iket; only the API and reference viewer bind to loopback.
+services:
+  postgres:
+    image: postgis/postgis:16-3.5
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-idrisi}
+      POSTGRES_USER: ${POSTGRES_USER:-idrisi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      MARTIN_DB_PASSWORD: ${MARTIN_DB_PASSWORD:?Set MARTIN_DB_PASSWORD in .env}
+      IDRISI_INGEST_DB_PASSWORD: ${IDRISI_INGEST_DB_PASSWORD:?Set IDRISI_INGEST_DB_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - idrisi-internal
+    volumes:
+      - idrisi-postgres:/var/lib/postgresql/data
+      - ./infrastructure/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-idrisi} -d ${POSTGRES_DB:-idrisi}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  idrisi-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      IDRISI_API_BIND: 0.0.0.0:8080
+      DATABASE_URL: postgres://${POSTGRES_USER:-idrisi}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-idrisi}
+      RUST_LOG: ${RUST_LOG:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose:
+      - "8080"
+    ports:
+      - "127.0.0.1:${IDRISI_API_PORT:-8080}:8080"
+    networks:
+      - idrisi-internal
+
+  martin:
+    image: ghcr.io/maplibre/martin:1.16.1
+    restart: unless-stopped
+    environment:
+      MARTIN_DATABASE_URL: postgres://martin_tiles:${MARTIN_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-idrisi}
+    command: ["--config", "/config/martin.yaml"]
+    volumes:
+      - ./infrastructure/martin/martin.yaml:/config/martin.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose:
+      - "3000"
+    networks:
+      - idrisi-internal
+
+  map-viewer:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - martin
+    volumes:
+      - ./examples/maplibre:/usr/share/nginx/html:ro
+    ports:
+      - "127.0.0.1:${MAP_VIEWER_PORT:-8090}:80"
+    networks:
+      - idrisi-internal
+
+volumes:
+  idrisi-postgres:
+
+networks:
+  idrisi-internal:
+    name: idrisi-internal
