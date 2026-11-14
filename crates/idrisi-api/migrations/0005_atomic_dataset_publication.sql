@@ -92,6 +92,7 @@ BEGIN
        OR v_source.status <> 'succeeded'
        OR v_source.job_type <> 'osm.pbf.import'
        OR v_source.result_metadata->>'state' <> 'imported_validated_unpublished'
+       OR v_source.result_metadata #>> '{import,validation}' <> 'passed'
     THEN
         RAISE EXCEPTION 'source import is not validated and ready'
             USING ERRCODE = '23514';
