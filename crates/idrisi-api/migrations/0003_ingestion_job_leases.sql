@@ -1,4 +1,10 @@
 -- A lease token fences stale workers from updating a job after it has been reclaimed.
+-- Requeue any pre-lease workers before enforcing the new ownership invariant.
+UPDATE ingestion_jobs
+SET status = 'queued', stage = 'queued', heartbeat_at = NULL,
+    lease_expires_at = NULL, started_at = NULL, updated_at = now()
+WHERE status = 'running';
+
 ALTER TABLE ingestion_jobs
     ADD COLUMN lease_owner text,
     ADD COLUMN lease_token uuid;
