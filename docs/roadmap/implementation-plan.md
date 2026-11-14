@@ -35,7 +35,7 @@ Acceptance:
 **Goal:** boot Idrisi's core dependencies locally.
 
 Deliverables:
-- Docker Compose for PostGIS and Martin; gateway skeleton
+- Docker Compose for Iket, PostGIS, Martin, and a private Rust domain API skeleton
 - Database migrations and least-privilege roles
 - Liveness/readiness endpoints
 - Structured logs, request IDs, and basic metrics
