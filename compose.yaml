@@ -10,6 +10,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       MARTIN_DB_PASSWORD: ${MARTIN_DB_PASSWORD:?Set MARTIN_DB_PASSWORD in .env}
       IDRISI_INGEST_DB_PASSWORD: ${IDRISI_INGEST_DB_PASSWORD:?Set IDRISI_INGEST_DB_PASSWORD in .env}
+      IDRISI_PUBLISH_DB_PASSWORD: ${IDRISI_PUBLISH_DB_PASSWORD:?Set IDRISI_PUBLISH_DB_PASSWORD in .env}
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     networks:
@@ -59,12 +60,41 @@ services:
       IDRISI_WORKER_LEASE_SECONDS: ${IDRISI_WORKER_LEASE_SECONDS:-300}
       IDRISI_WORKER_HEARTBEAT_SECONDS: ${IDRISI_WORKER_HEARTBEAT_SECONDS:-30}
       IDRISI_WORKER_REQUEST_TIMEOUT_SECONDS: ${IDRISI_WORKER_REQUEST_TIMEOUT_SECONDS:-14400}
+      IDRISI_OSMIUM_PATH: ${IDRISI_OSMIUM_PATH:-/usr/bin/osmium}
+      IDRISI_WORKER_INSPECTION_TIMEOUT_SECONDS: ${IDRISI_WORKER_INSPECTION_TIMEOUT_SECONDS:-1800}
+      IDRISI_OSM2PGSQL_PATH: ${IDRISI_OSM2PGSQL_PATH:-/usr/bin/osm2pgsql}
+      IDRISI_OSM_STYLE_PATH: ${IDRISI_OSM_STYLE_PATH:-/opt/idrisi/osm2pgsql/bandung.lua}
+      IDRISI_WORKER_IMPORT_TIMEOUT_SECONDS: ${IDRISI_WORKER_IMPORT_TIMEOUT_SECONDS:-21600}
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-idrisi}
+      PGUSER: idrisi_ingest
+      PGPASSWORD: ${IDRISI_INGEST_DB_PASSWORD}
       RUST_LOG: ${RUST_LOG:-info}
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
       - idrisi-ingestion-data:/var/lib/idrisi/ingestion
+    networks:
+      - idrisi-internal
+
+  idrisi-publisher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["/usr/local/bin/idrisi-publisher"]
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      DATABASE_URL: postgres://idrisi_publish:${IDRISI_PUBLISH_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-idrisi}
+      IDRISI_PUBLISHER_POLL_SECONDS: ${IDRISI_PUBLISHER_POLL_SECONDS:-5}
+      IDRISI_PUBLISHER_LEASE_SECONDS: ${IDRISI_PUBLISHER_LEASE_SECONDS:-300}
+      IDRISI_PUBLISHER_HEARTBEAT_SECONDS: ${IDRISI_PUBLISHER_HEARTBEAT_SECONDS:-30}
+      RUST_LOG: ${RUST_LOG:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - idrisi-internal
 

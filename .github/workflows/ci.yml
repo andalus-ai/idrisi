@@ -13,6 +13,20 @@ jobs:
   rust:
     name: Rust checks
     runs-on: ubuntu-latest
+    services:
+      postgis:
+        image: postgis/postgis:16-3.5
+        env:
+          POSTGRES_USER: idrisi
+          POSTGRES_PASSWORD: idrisi_test
+          POSTGRES_DB: idrisi
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U idrisi -d idrisi"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -23,18 +37,33 @@ jobs:
         run: cp .env.example .env
       - name: Compose config
         run: docker compose -f compose.yaml config --quiet
+      - name: PostGIS migration and publication privilege gates
+        run: bash scripts/integration/postgis-publication-gates.sh
       - name: Ingestion and smoke-test script syntax
         run: |
           bash -n scripts/ingest/osm-bandung.sh
           bash -n scripts/smoke/test-vector-tiles.sh
+          bash -n scripts/integration/postgis-publication-gates.sh
       - name: TypeScript SDK
         working-directory: sdks/typescript
         run: |
           npm install --no-audit --no-fund
           npm test
+      - name: Prepare PostGIS integration roles
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          PGPASSWORD=idrisi_test psql "postgres://idrisi@localhost:5432/idrisi" \
+            -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE martin_tiles LOGIN PASSWORD 'martin_test';
+          CREATE ROLE idrisi_ingest LOGIN PASSWORD 'ingest_test';
+          CREATE ROLE idrisi_publish LOGIN PASSWORD 'publish_test';
+          SQL
       - name: Format
         run: cargo fmt --all -- --check
       - name: Clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: Test
+        env:
+          IDRISI_TEST_DATABASE_URL: postgres://idrisi:idrisi_test@localhost:5432/idrisi
         run: cargo test --workspace
