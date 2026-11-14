@@ -40,7 +40,7 @@ See [Architecture](docs/architecture/overview.md), [Iket integration](docs/integ
 
 ## Repository status
 
-The repository contains the Rust domain API, PostGIS catalog migrations, a private Martin vector-tile service, Iket route examples, a one-shot Bandung OSM import script, a queue-backed source-staging worker, and a MapLibre reference viewer. The pilot dataset is registered in the catalog but has not yet been imported in a live environment; the `tiles` schema remains empty until an operator runs the ingestion script. Incremental updates, MapLibre rendering, routing, geocoding, and raster serving remain planned.
+The repository contains the Rust domain API, PostGIS catalog migrations, a private Martin vector-tile service, Iket route examples, a one-shot Bandung OSM import script, a queue-backed OSM staging/import worker with isolated PostGIS validation, and a MapLibre reference viewer. The pilot dataset is registered in the catalog but has not yet been imported in a live environment; the `tiles` schema remains empty until an operator runs the ingestion script. Incremental updates, MapLibre rendering, routing, geocoding, and raster serving remain planned.
 
 ## Development
 
@@ -53,7 +53,7 @@ docker compose config --quiet
 docker compose up --build -d
 ```
 
-The worker polls the private ingestion queue but does not download anything until an operator enqueues a supported `osm.pbf.stage` job. That initial handler stages and verifies a source PBF; it does not import or publish map data. See [Ingestion worker](docs/ingestion/worker.md). Open http://127.0.0.1:8090 and configure the Iket URL/token after running the OSM import. See [Local Development](docs/operations/local-development.md) and [Phase 1 Infrastructure](docs/operations/phase-1-infrastructure.md).
+The worker polls the private ingestion queue but does not download anything until an operator enqueues a supported `osm.pbf.stage` or `osm.pbf.import` job. Import jobs create uniquely prefixed tables in `tiles_import` and validate the results; they do not publish data to Martin's `tiles` schema. See [Ingestion worker](docs/ingestion/worker.md). Open http://127.0.0.1:8090 and configure the Iket URL/token after running the OSM import. See [Local Development](docs/operations/local-development.md) and [Phase 1 Infrastructure](docs/operations/phase-1-infrastructure.md).
 
 Do not download or commit large geographic datasets into Git. Store source files, generated tiles, routing graphs, and raster assets in configured data volumes or object storage.
 
