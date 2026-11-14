@@ -24,6 +24,9 @@ struct Config {
     lease_duration: Duration,
     heartbeat_interval: Duration,
     request_timeout: Duration,
+    osmium_bin: String,
+    inspection_timeout: Duration,
+    max_inspection_report_bytes: usize,
     osmium_executable: PathBuf,
     inspection_timeout: Duration,
 }
@@ -71,6 +74,8 @@ impl Config {
                 .unwrap_or_else(|_| "14400".to_owned())
                 .parse()?,
         );
+        let osmium_bin = env::var("IDRISI_WORKER_OSMIUM_BIN")
+            .unwrap_or_else(|_| "/usr/bin/osmium".to_owned());
         let osmium_executable = PathBuf::from(
             env::var("IDRISI_OSMIUM_PATH").unwrap_or_else(|_| "/usr/bin/osmium".to_owned()),
         );
@@ -79,11 +84,15 @@ impl Config {
                 .unwrap_or_else(|_| "1800".to_owned())
                 .parse()?,
         );
+        let max_inspection_report_bytes = env::var("IDRISI_WORKER_MAX_INSPECTION_REPORT_BYTES")
+            .unwrap_or_else(|_| (2 * 1024 * 1024).to_string())
+            .parse::<usize>()?;
         if max_source_bytes == 0
             || poll_interval.is_zero()
             || heartbeat_interval.is_zero()
             || request_timeout.is_zero()
             || inspection_timeout.is_zero()
+            || max_inspection_report_bytes == 0
             || osmium_executable.as_os_str().is_empty()
         {
             return Err("worker byte and duration settings must be positive".into());
@@ -99,6 +108,9 @@ impl Config {
             lease_duration,
             heartbeat_interval,
             request_timeout,
+            osmium_bin,
+            inspection_timeout,
+            max_inspection_report_bytes,
             osmium_executable,
             inspection_timeout,
         })
@@ -202,11 +214,11 @@ async fn process_job(
         repository
             .set_stage(job_id, lease_token, JobStage::Acquiring, 10)
             .await
-            .map_err(|error| error.to_string())?;
+            .map_err(|_| "job stage update failed".to_owned())?;
 
         tokio::fs::create_dir_all(&attempt_dir)
             .await
-            .map_err(|error| format!("could not create job staging directory: {error}"))?;
+            .map_err(|_| "could not create job staging directory".to_owned())?;
         let destination = attempt_dir.join("source.osm.pbf");
 
         let policy = DownloadPolicy {
@@ -216,12 +228,12 @@ async fn process_job(
         };
         let receipt = download(&job.source_uri, &destination, &policy)
             .await
-            .map_err(|error| error.to_string())?;
+            .map_err(|_| "source acquisition failed".to_owned())?;
 
         repository
             .set_stage(job_id, lease_token, JobStage::Checksum, 80)
             .await
-            .map_err(|error| error.to_string())?;
+            .map_err(|_| "job stage update failed".to_owned())?;
 
         if let Some(expected) = job.source_checksum.as_deref() {
             let expected = expected.strip_prefix("sha256:").unwrap_or(expected);
@@ -251,6 +263,12 @@ async fn process_job(
             "artifact_path": destination,
             "bytes": receipt.bytes,
             "sha256": receipt.sha256,
+            "pbf": {
+                "file_size_bytes": inspection.file_size_bytes,
+                "nodes": inspection.nodes,
+                "ways": inspection.ways,
+                "relations": inspection.relations,
+                "bbox": inspection.bbox,
             "source_uri": job.source_uri,
             "inspection": {
                 "file_size_bytes": inspection.file_size_bytes,

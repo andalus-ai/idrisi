@@ -13,6 +13,7 @@ RUN cargo build --release -p idrisi-api -p idrisi-ingestion --bins
 
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update \
+    && apt-get install -y --no-install-recommends osmium-tool ca-certificates \
     && apt-get install -y --no-install-recommends ca-certificates osmium-tool \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --create-home idrisi \

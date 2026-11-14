@@ -4,6 +4,7 @@
 //! Credentials are supplied through the child process environment by the worker,
 //! never through command-line arguments or persisted job metadata.
 
+pub mod inspector;
 pub mod repository;
 pub mod staging;
 pub mod inspector;
