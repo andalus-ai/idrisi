@@ -37,11 +37,17 @@ The ingestion crate now includes a PostgreSQL `JobRepository` backed by SQLx. It
 
 Migration `0003_ingestion_job_leases.sql` adds the ownership fields and constraints. Existing running jobs are requeued during migration because they cannot safely inherit a lease owned by a process from the old schema. The repository is a control-plane primitive; it is not yet a continuously running worker or a complete ingestion pipeline. Publication must remain a separate, transactionally guarded operation and must check lease ownership immediately before committing.
 
+## OSM PBF structural inspection
+
+The ingestion crate includes an `inspector` adapter for the pinned `osmium-tool` executable. It runs `osmium fileinfo --extended --json` without a shell, applies a hard deadline, suppresses stderr, bounds accepted JSON output, and rejects non-PBF, empty, or incomplete reports. Extended mode reads the entire input, allowing malformed/truncated PBF data to fail before the database importer starts. The normalized result records file size, node/way/relation counts, available data bounds and timestamps, replication timestamp/sequence, and the bounded raw report for provenance.
+
+The executable version must be pinned in the worker image and exercised against real PBF fixtures in CI. The parser intentionally treats bounding-box and timestamp details as optional because OSM extracts may omit them; coverage policy enforcement belongs to the next validation stage. This adapter is not yet called by a durable worker.
+
 ## Initial Rust importer adapter
 
 The `idrisi-ingestion` crate now contains an `Osm2pgsqlConfig` and deterministic invocation builder. It creates an argument vector (never a shell string), validates PostgreSQL database/role/staging-schema identifiers, and deliberately excludes passwords from command-line arguments. The caller must inject credentials from a secret source when spawning the child process.
 
-This is an adapter foundation, not a running worker. The job poller, PBF acquisition and inspection, process supervision, Lua flex style, staging validation, and atomic publication still need implementation. Pin and test the exact osm2pgsql image/CLI before real imports.
+This is an adapter foundation, not a running worker. The job poller, reviewed Lua flex style, staging validation, and atomic publication still need implementation. Acquisition, process supervision, and PBF inspection adapters exist but are not yet wired into a worker. Pin and test the exact osm2pgsql image/CLI before real imports.
 
 ## Initial importer contract
 
@@ -58,7 +64,7 @@ The `idrisi-ingestion` crate now includes:
 
 The downloader's SHA-256 is a local content fingerprint. It must still be compared with a trusted provider checksum when one is available. The caller must create and permission the job directory before download. The host allowlist must be operator-configured; never derive it from an untrusted API request.
 
-These primitives are not yet wired to `ingestion_jobs`. A durable worker loop, database lease/heartbeat handling, PBF structural inspection, importer recipe, validation, and publication remain outstanding. The process runner's timeout and failure behavior still needs execution testing in CI and in the worker container.
+These primitives are not yet wired to `ingestion_jobs`. A durable worker loop, importer recipe, validation, and publication remain outstanding. PBF structural inspection and database lease/heartbeat primitives exist but are not yet connected. The process runner's timeout and failure behavior still needs execution testing in CI and in the worker container.
 
 ## OSM provenance and attribution
 

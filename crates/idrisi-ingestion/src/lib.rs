@@ -5,6 +5,7 @@
 //! never through command-line arguments or persisted job metadata.
 
 pub mod repository;
+pub mod inspector;
 
 use std::{ffi::OsString, path::PathBuf};
 
