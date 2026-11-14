@@ -54,6 +54,17 @@ The first implementation milestone will establish:
 
 Do not download or commit large geographic datasets into Git. Store source files, generated tiles, routing graphs, and raster assets in configured data volumes or object storage.
 
+## Local development stack
+
+A local PostGIS + Idrisi API + Martin stack is available through Docker Compose. See [Local Development](docs/operations/local-development.md) for prerequisites, startup commands, endpoints, and current limitations.
+
+```sh
+cp .env.example .env
+docker compose up --build -d
+```
+
+The stack starts infrastructure only; it does not automatically download or import geographic datasets.
+
 ## Data and attribution
 
 Every imported dataset must have a recorded source, retrieval time, version or checksum, license, attribution text, geographic extent, processing recipe, and update policy. OpenStreetMap data requires appropriate attribution and compliance with the ODbL. Other datasets—including satellite, elevation, nautical, and aviation sources—must be reviewed independently before use or redistribution.
