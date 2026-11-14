@@ -80,7 +80,9 @@ mod tests {
     async fn rejects_zero_heartbeat_interval_before_polling_database() {
         let result = run_with_heartbeat(
             // The function validates the interval before using this repository.
-            &JobRepository::new(sqlx::PgPool::connect_lazy("postgres://unused:unused@localhost/unused").unwrap()),
+            &JobRepository::new(
+                sqlx::PgPool::connect_lazy("postgres://unused:unused@localhost/unused").unwrap(),
+            ),
             uuid::Uuid::nil(),
             uuid::Uuid::nil(),
             Duration::from_secs(30),
