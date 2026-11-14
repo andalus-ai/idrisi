@@ -92,8 +92,7 @@ impl Config {
                 .parse()?,
         );
         let osm2pgsql_executable = PathBuf::from(
-            env::var("IDRISI_OSM2PGSQL_PATH")
-                .unwrap_or_else(|_| "/usr/bin/osm2pgsql".to_owned()),
+            env::var("IDRISI_OSM2PGSQL_PATH").unwrap_or_else(|_| "/usr/bin/osm2pgsql".to_owned()),
         );
         let osm_style_template = PathBuf::from(
             env::var("IDRISI_OSM_STYLE_PATH")
@@ -105,7 +104,9 @@ impl Config {
                 .parse()?,
         );
         let pg_host = env::var("PGHOST").unwrap_or_else(|_| "postgres".to_owned());
-        let pg_port = env::var("PGPORT").unwrap_or_else(|_| "5432".to_owned()).parse()?;
+        let pg_port = env::var("PGPORT")
+            .unwrap_or_else(|_| "5432".to_owned())
+            .parse()?;
         let pg_database = env::var("PGDATABASE").unwrap_or_else(|_| "idrisi".to_owned());
         let pg_username = env::var("PGUSER").unwrap_or_else(|_| "idrisi_ingest".to_owned());
         let pg_password = env::var("PGPASSWORD")?;
@@ -235,10 +236,9 @@ async fn process_job(
         return;
     }
     let work = async {
-        let is_stage = job.job_type == "osm.pbf.stage"
-            && job.importer_name == "geofabrik-pbf-download";
-        let is_import = job.job_type == "osm.pbf.import"
-            && job.importer_name == "osm2pgsql-flex";
+        let is_stage =
+            job.job_type == "osm.pbf.stage" && job.importer_name == "geofabrik-pbf-download";
+        let is_import = job.job_type == "osm.pbf.import" && job.importer_name == "osm2pgsql-flex";
         if !is_stage && !is_import {
             return Err("job type or importer is not registered by this worker".to_owned());
         }
