@@ -13,13 +13,14 @@ RUN cargo build --release -p idrisi-api -p idrisi-ingestion --bins
 
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates osmium-tool \
+    && apt-get install -y --no-install-recommends ca-certificates osmium-tool osm2pgsql \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --uid 10001 --create-home idrisi \
-    && mkdir -p /var/lib/idrisi/ingestion \
+    && mkdir -p /var/lib/idrisi/ingestion /opt/idrisi/osm2pgsql \
     && chown -R idrisi:idrisi /var/lib/idrisi
 COPY --from=builder /app/target/release/idrisi-api /usr/local/bin/idrisi-api
 COPY --from=builder /app/target/release/idrisi-worker /usr/local/bin/idrisi-worker
+COPY infrastructure/osm2pgsql/bandung.lua /opt/idrisi/osm2pgsql/bandung.lua
 
 USER 10001:10001
 EXPOSE 8080
