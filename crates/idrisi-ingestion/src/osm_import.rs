@@ -41,7 +41,10 @@ fn validate_schema(schema: &str) -> bool {
     let Some(suffix) = schema.strip_prefix("idrisi_stage_") else {
         return false;
     };
-    suffix.len() == 32 && suffix.chars().all(|character| character.is_ascii_hexdigit())
+    suffix.len() == 32
+        && suffix
+            .chars()
+            .all(|character| character.is_ascii_hexdigit())
 }
 
 pub async fn create_namespace(
@@ -83,10 +86,13 @@ pub async fn dataset_bounds(
     .await?
     .ok_or(OSMImportError::MissingCoverage)?;
     match row {
-        (Some(west), Some(south), Some(east), Some(north))
-            if west < east && south < north =>
-        {
-            Ok(DatasetBounds { west, south, east, north })
+        (Some(west), Some(south), Some(east), Some(north)) if west < east && south < north => {
+            Ok(DatasetBounds {
+                west,
+                south,
+                east,
+                north,
+            })
         }
         _ => Err(OSMImportError::MissingCoverage),
     }
@@ -168,12 +174,15 @@ pub async fn validate_import(
             }
         }
         total_features += count;
-        layers.insert(layer.to_owned(), json!({
-            "feature_count": count,
-            "empty_or_null_geometry_count": empty,
-            "wrong_srid_count": wrong_srid,
-            "invalid_geometry_count": invalid
-        }));
+        layers.insert(
+            layer.to_owned(),
+            json!({
+                "feature_count": count,
+                "empty_or_null_geometry_count": empty,
+                "wrong_srid_count": wrong_srid,
+                "invalid_geometry_count": invalid
+            }),
+        );
     }
     Ok(json!({
         "data_schema": schema,
@@ -190,7 +199,9 @@ mod tests {
 
     #[test]
     fn validates_only_lease_derived_data_schemas() {
-        assert!(validate_schema("idrisi_stage_0123456789abcdef0123456789abcdef"));
+        assert!(validate_schema(
+            "idrisi_stage_0123456789abcdef0123456789abcdef"
+        ));
         assert!(!validate_schema("tiles"));
         assert!(!validate_schema("idrisi_stage_0123;drop"));
     }
