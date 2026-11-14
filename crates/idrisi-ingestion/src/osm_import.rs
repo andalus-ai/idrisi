@@ -1,14 +1,12 @@
-//! Isolated OSM flex import rendering and PostGIS validation.
+//! PostGIS validation for per-attempt OSM staging schemas.
 use serde_json::{json, Value};
 use sqlx::PgPool;
-
-const STYLE_TEMPLATE: &str = include_str!("../../../infrastructure/osm2pgsql/bandung.lua");
-const IMPORT_SCHEMA: &str = "tiles_import";
+use uuid::Uuid;
 
 #[derive(Debug, thiserror::Error)]
 pub enum OSMImportError {
-    #[error("invalid import schema or table prefix")]
-    InvalidIdentifier,
+    #[error("unsafe OSM staging schema")]
+    InvalidSchema,
     #[error("dataset coverage is missing")]
     MissingCoverage,
     #[error("imported layer {0} is missing")]
@@ -39,32 +37,44 @@ impl DatasetBounds {
     }
 }
 
-pub fn validate_identifier(value: &str) -> bool {
-    let mut chars = value.chars();
-    chars.next().is_some_and(|c| c == '_' || c.is_ascii_lowercase())
-        && chars.all(|c| c == '_' || c.is_ascii_lowercase() || c.is_ascii_digit())
-        && value.len() <= 63
+fn validate_schema(schema: &str) -> bool {
+    let Some(suffix) = schema.strip_prefix("idrisi_stage_") else {
+        return false;
+    };
+    suffix.len() == 32 && suffix.chars().all(|character| character.is_ascii_hexdigit())
 }
 
-/// Render the reviewed Lua recipe with unique per-attempt table names.
-/// Only fixed table-name literals are replaced; no job-provided Lua is accepted.
-pub fn render_style(schema: &str, prefix: &str) -> Result<String, OSMImportError> {
-    if schema != IMPORT_SCHEMA || !validate_identifier(prefix) {
-        return Err(OSMImportError::InvalidIdentifier);
+pub async fn create_namespace(
+    pool: &PgPool,
+    lease_token: Uuid,
+) -> Result<(String, String), OSMImportError> {
+    let result = sqlx::query_as::<_, (String, String)>(
+        "SELECT data_schema, middle_schema FROM idrisi_create_osm_staging_schemas($1)",
+    )
+    .bind(lease_token)
+    .fetch_one(pool)
+    .await?;
+    if !validate_schema(&result.0)
+        || !result.1.starts_with("idrisi_mid_")
+        || result.1.len() != "idrisi_mid_".len() + 32
+    {
+        return Err(OSMImportError::InvalidSchema);
     }
-    let mut style = STYLE_TEMPLATE.replace("{ schema = 'tiles' }", "{ schema = 'tiles_import' }");
-    for layer in ["osm_roads", "osm_places", "osm_buildings", "osm_water"] {
-        let from = format!("('{layer}'");
-        let to = format!("('{prefix}_{layer}'");
-        style = style.replace(&from, &to);
-    }
-    if style.matches("{ schema = 'tiles_import' }").count() != 4 {
-        return Err(OSMImportError::InvalidIdentifier);
-    }
-    Ok(style)
+    Ok(result)
 }
 
-pub async fn dataset_bounds(pool: &PgPool, dataset_id: uuid::Uuid) -> Result<DatasetBounds, OSMImportError> {
+pub async fn drop_namespace(pool: &PgPool, lease_token: Uuid) -> Result<(), sqlx::Error> {
+    sqlx::query("SELECT idrisi_drop_osm_staging_schemas($1)")
+        .bind(lease_token)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+pub async fn dataset_bounds(
+    pool: &PgPool,
+    dataset_id: Uuid,
+) -> Result<DatasetBounds, OSMImportError> {
     let row = sqlx::query_as::<_, (Option<f64>, Option<f64>, Option<f64>, Option<f64>)>(
         "SELECT ST_XMin(Box3D(coverage)), ST_YMin(Box3D(coverage)), ST_XMax(Box3D(coverage)), ST_YMax(Box3D(coverage)) FROM datasets WHERE id = $1 AND coverage IS NOT NULL",
     )
@@ -116,26 +126,26 @@ fn parse_extent(value: &str) -> Result<(f64, f64, f64, f64), OSMImportError> {
 pub async fn validate_import(
     pool: &PgPool,
     schema: &str,
-    prefix: &str,
     bounds: &DatasetBounds,
 ) -> Result<Value, OSMImportError> {
-    if schema != IMPORT_SCHEMA || !validate_identifier(prefix) {
-        return Err(OSMImportError::InvalidIdentifier);
+    if !validate_schema(schema) {
+        return Err(OSMImportError::InvalidSchema);
     }
     let mut layers = serde_json::Map::new();
     let mut total_features = 0_i64;
     for layer in ["osm_roads", "osm_places", "osm_buildings", "osm_water"] {
-        let table = format!("{prefix}_{layer}");
         let query = format!(
             "SELECT COUNT(*)::bigint, \
              COUNT(*) FILTER (WHERE geom IS NULL OR ST_IsEmpty(geom))::bigint, \
              COUNT(*) FILTER (WHERE geom IS NOT NULL AND ST_SRID(geom) <> 4326)::bigint, \
              COUNT(*) FILTER (WHERE geom IS NOT NULL AND NOT ST_IsValid(geom))::bigint, \
              ST_Extent(geom)::text \
-             FROM {schema}.{table}"
+             FROM {schema}.{layer}"
         );
         let (count, empty, wrong_srid, invalid, extent): (i64, i64, i64, i64, Option<String>) =
-            sqlx::query_as(&query).fetch_one(pool).await
+            sqlx::query_as(&query)
+                .fetch_one(pool)
+                .await
                 .map_err(|error| match error {
                     sqlx::Error::Database(_) => OSMImportError::MissingLayer(layer),
                     other => OSMImportError::Database(other),
@@ -166,8 +176,7 @@ pub async fn validate_import(
         }));
     }
     Ok(json!({
-        "schema": schema,
-        "table_prefix": prefix,
+        "data_schema": schema,
         "feature_count": total_features,
         "layers": Value::Object(layers),
         "validation": "passed",
@@ -180,23 +189,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn renders_unique_tables_only_in_import_schema() {
-        let style = render_style("tiles_import", "j0123456789abcdef").unwrap();
-        assert!(style.contains("define_way_table('j0123456789abcdef_osm_roads'"));
-        assert!(style.contains("{ schema = 'tiles_import' }"));
-        assert!(!style.contains("{ schema = 'tiles' }"));
-    }
-
-    #[test]
-    fn rejects_unsafe_identifiers() {
-        assert!(render_style("tiles", "jgood").is_err());
-        assert!(render_style("tiles_import", "bad;drop").is_err());
-        assert!(render_style("tiles_import", "JUPPER").is_err());
+    fn validates_only_lease_derived_data_schemas() {
+        assert!(validate_schema("idrisi_stage_0123456789abcdef0123456789abcdef"));
+        assert!(!validate_schema("tiles"));
+        assert!(!validate_schema("idrisi_stage_0123;drop"));
     }
 
     #[test]
     fn parses_postgis_extent() {
-        assert_eq!(parse_extent("BOX(107.3 -7.1,107.8 -6.7)").unwrap(), (107.3, -7.1, 107.8, -6.7));
+        assert_eq!(
+            parse_extent("BOX(107.3 -7.1,107.8 -6.7)").unwrap(),
+            (107.3, -7.1, 107.8, -6.7)
+        );
     }
 
     #[test]
