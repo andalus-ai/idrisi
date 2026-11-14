@@ -112,6 +112,9 @@ ON CONFLICT (dataset_id, version) DO NOTHING;
 
 UPDATE datasets SET status = 'published', updated_at = now()
 WHERE slug = 'osm-bandung-pilot';
+
+UPDATE layers SET is_enabled = true, updated_at = now()
+WHERE dataset_id = (SELECT id FROM datasets WHERE slug = 'osm-bandung-pilot');
 SQL
 
 echo "Bandung OSM pilot import complete."
