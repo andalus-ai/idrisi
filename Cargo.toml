@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/idrisi-api"]
+members = ["crates/idrisi-api", "crates/idrisi-ingestion"]
 resolver = "2"
 
 [workspace.package]
