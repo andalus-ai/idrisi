@@ -1,0 +1,16 @@
+/target/
+.env
+.env.*
+!.env.example
+/data/
+/certs/
+/logs/
+*.pbf
+*.osm
+*.mbtiles
+*.pmtiles
+*.gpkg
+*.tif
+*.tiff
+*.sqlite
+*.db
