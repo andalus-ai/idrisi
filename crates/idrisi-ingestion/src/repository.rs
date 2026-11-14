@@ -238,7 +238,8 @@ impl JobRepository {
     ) -> Result<(), LeaseError> {
         let staging_schema = result_metadata
             .pointer("/staging/data_schema")
-            .and_then(serde_json::Value::as_str);
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned);
         let result = sqlx::query(
             r#"UPDATE ingestion_jobs
                SET status = 'succeeded', stage = 'complete', progress_percent = 100,
