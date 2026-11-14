@@ -29,7 +29,7 @@ Idrisi is intended to be reusable by applications such as Jezaku without couplin
 - **API gateway:** [Iket](https://github.com/andalus-ai/iket), a standalone Go gateway for public ingress, TLS, authentication policies, rate limiting, and upstream routing.
 - **Idrisi APIs:** Rust domain services behind Iket; Axum may be used internally, but Idrisi does not build a second public gateway.
 - **Spatial database:** PostgreSQL + PostGIS for editable and queryable spatial data.
-- **Vector tiles:** Martin as an independently deployed tile server; PMTiles for static, portable regional archives.
+- **Vector tiles:** Martin 1.16.1 as a private PostGIS-backed tile service behind Iket; PMTiles for static, portable regional archives.
 - **Raster and terrain:** GDAL/PROJ-based preprocessing and pluggable raster/terrain serving.
 - **Routing:** Valhalla as the initial routing engine integration; keep OSRM and GraphHopper as possible alternative providers.
 - **Geocoding:** provider interface with Nominatim as a candidate initial self-hosted backend; Pelias remains an alternative.
@@ -40,7 +40,7 @@ See [Architecture](docs/architecture/overview.md), [Iket integration](docs/integ
 
 ## Repository status
 
-This repository begins with architecture and delivery documentation. The documents describe intended boundaries and milestones; they do not imply that the services or integrations have already been implemented.
+The repository contains the Rust domain API, PostGIS catalog migrations, a private Martin vector-tile service, and Iket route examples. The tile schema is currently empty: no Indonesia OSM or other production map dataset has been imported yet. Routing, geocoding, raster serving, and ingestion orchestration remain planned.
 
 ## Development
 
