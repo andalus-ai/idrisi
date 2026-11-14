@@ -21,8 +21,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Compose config
         run: docker compose config --quiet
-      - name: Ingestion script syntax
-        run: bash -n scripts/ingest/osm-bandung.sh
+      - name: Ingestion and smoke-test script syntax
+        run: |
+          bash -n scripts/ingest/osm-bandung.sh
+          bash -n scripts/smoke/test-vector-tiles.sh
       - name: Format
         run: cargo fmt --all -- --check
       - name: Clippy
