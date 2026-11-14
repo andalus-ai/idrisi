@@ -4,7 +4,11 @@
 //! only the PBF header. Keep osmium-tool version pinned in the worker image.
 
 use serde_json::Value;
-use std::{path::{Path, PathBuf}, process::Stdio, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    process::Stdio,
+    time::Duration,
+};
 use tokio::{io::AsyncReadExt, process::Command, time::timeout};
 
 #[derive(Debug, Clone)]
@@ -87,7 +91,10 @@ pub async fn inspect(
         let stdout = child.stdout.take().ok_or(InspectionError::InvalidJson)?;
         let mut reader = stdout.take(policy.max_json_bytes.saturating_add(1) as u64);
         let mut bytes = Vec::with_capacity(policy.max_json_bytes.min(64 * 1024));
-        reader.read_to_end(&mut bytes).await.map_err(InspectionError::Spawn)?;
+        reader
+            .read_to_end(&mut bytes)
+            .await
+            .map_err(InspectionError::Spawn)?;
         drop(reader);
         if bytes.len() > policy.max_json_bytes {
             let _ = child.kill().await;
@@ -116,7 +123,9 @@ pub async fn inspect(
 
 fn parse_report(file_size_bytes: u64, report: Value) -> Result<PbfInspection, InspectionError> {
     let file = report.get("file").ok_or(InspectionError::MissingMetadata)?;
-    let format = file.get("format").and_then(Value::as_str)
+    let format = file
+        .get("format")
+        .and_then(Value::as_str)
         .ok_or(InspectionError::MissingMetadata)?;
     if !format.eq_ignore_ascii_case("PBF") {
         return Err(InspectionError::NotPbf);
@@ -124,11 +133,17 @@ fn parse_report(file_size_bytes: u64, report: Value) -> Result<PbfInspection, In
 
     let data = report.get("data").ok_or(InspectionError::MissingMetadata)?;
     let counts = data.get("count").ok_or(InspectionError::MissingMetadata)?;
-    let node_count = counts.get("nodes").and_then(Value::as_u64)
+    let node_count = counts
+        .get("nodes")
+        .and_then(Value::as_u64)
         .ok_or(InspectionError::MissingMetadata)?;
-    let way_count = counts.get("ways").and_then(Value::as_u64)
+    let way_count = counts
+        .get("ways")
+        .and_then(Value::as_u64)
         .ok_or(InspectionError::MissingMetadata)?;
-    let relation_count = counts.get("relations").and_then(Value::as_u64)
+    let relation_count = counts
+        .get("relations")
+        .and_then(Value::as_u64)
         .ok_or(InspectionError::MissingMetadata)?;
     if node_count.saturating_add(way_count).saturating_add(relation_count) == 0 {
         return Err(InspectionError::EmptyPbf);
@@ -145,12 +160,19 @@ fn parse_report(file_size_bytes: u64, report: Value) -> Result<PbfInspection, In
         way_count,
         relation_count,
         data_bbox: data.get("bbox").cloned(),
-        first_timestamp: data.get("timestamp").and_then(|v| v.get("first"))
-            .and_then(Value::as_str).map(str::to_owned),
-        last_timestamp: data.get("timestamp").and_then(|v| v.get("last"))
-            .and_then(Value::as_str).map(str::to_owned),
+        first_timestamp: data
+            .get("timestamp")
+            .and_then(|v| v.get("first"))
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        last_timestamp: data
+            .get("timestamp")
+            .and_then(|v| v.get("last"))
+            .and_then(Value::as_str)
+            .map(str::to_owned),
         replication_timestamp: header_option("osmosis_replication_timestamp")
-            .and_then(Value::as_str).map(str::to_owned),
+            .and_then(Value::as_str)
+            .map(str::to_owned),
         replication_sequence: header_option("osmosis_replication_sequence_number")
             .and_then(Value::as_u64),
         report,
