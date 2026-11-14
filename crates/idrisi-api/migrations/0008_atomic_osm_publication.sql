@@ -99,14 +99,7 @@ DECLARE
     empty_count bigint;
     wrong_srid_count bigint;
     invalid_geometry_count bigint;
-    west double precision;
-    south double precision;
-    east double precision;
-    north double precision;
-    coverage_west double precision;
-    coverage_south double precision;
-    coverage_east double precision;
-    coverage_north double precision;
+    outside_coverage_count bigint;
     layer_name text;
     archive_name text;
     result jsonb;
@@ -163,23 +156,19 @@ BEGIN
         RAISE EXCEPTION 'dataset source and coverage must be registered before publication';
     END IF;
 
-    coverage_west := public.ST_XMin(public.Box3D(dataset_row.coverage));
-    coverage_south := public.ST_YMin(public.Box3D(dataset_row.coverage));
-    coverage_east := public.ST_XMax(public.Box3D(dataset_row.coverage));
-    coverage_north := public.ST_YMax(public.Box3D(dataset_row.coverage));
-
     FOREACH layer_name IN ARRAY ARRAY['osm_roads', 'osm_places', 'osm_buildings', 'osm_water'] LOOP
         IF to_regclass(format('%I.%I', data_schema, layer_name)) IS NULL THEN
             RAISE EXCEPTION 'validated import is missing layer %', layer_name;
         END IF;
 
         EXECUTE format(
-            'SELECT COUNT(*)::bigint, COUNT(*) FILTER (WHERE geom IS NULL OR public.ST_IsEmpty(geom))::bigint, COUNT(*) FILTER (WHERE geom IS NOT NULL AND public.ST_SRID(geom) <> 4326)::bigint, COUNT(*) FILTER (WHERE geom IS NOT NULL AND NOT public.ST_IsValid(geom))::bigint, MIN(public.ST_XMin(public.Box3D(geom))), MIN(public.ST_YMin(public.Box3D(geom))), MAX(public.ST_XMax(public.Box3D(geom))), MAX(public.ST_YMax(public.Box3D(geom))) FROM %I.%I',
+            'SELECT COUNT(*)::bigint, COUNT(*) FILTER (WHERE geom IS NULL OR public.ST_IsEmpty(geom))::bigint, COUNT(*) FILTER (WHERE geom IS NOT NULL AND public.ST_SRID(geom) <> 4326)::bigint, COUNT(*) FILTER (WHERE geom IS NOT NULL AND NOT public.ST_IsValid(geom))::bigint, COUNT(*) FILTER (WHERE geom IS NOT NULL AND NOT public.ST_Intersects(geom, $1))::bigint FROM %I.%I',
             data_schema,
             layer_name
         )
         INTO layer_count, empty_count, wrong_srid_count, invalid_geometry_count,
-             west, south, east, north;
+             outside_coverage_count
+        USING dataset_row.coverage;
 
         IF empty_count + wrong_srid_count + invalid_geometry_count > 0 THEN
             RAISE EXCEPTION 'imported layer % failed geometry validation', layer_name;
@@ -187,13 +176,8 @@ BEGIN
         IF layer_name = 'osm_roads' AND layer_count = 0 THEN
             RAISE EXCEPTION 'validated import has no road features';
         END IF;
-        IF west IS NOT NULL AND (
-            west < coverage_west - 0.0001
-            OR south < coverage_south - 0.0001
-            OR east > coverage_east + 0.0001
-            OR north > coverage_north + 0.0001
-        ) THEN
-            RAISE EXCEPTION 'imported layer % lies outside dataset coverage', layer_name;
+        IF outside_coverage_count > 0 THEN
+            RAISE EXCEPTION 'imported layer % contains features outside dataset coverage', layer_name;
         END IF;
         total_features := total_features + layer_count;
     END LOOP;
@@ -253,7 +237,8 @@ BEGIN
 
     UPDATE public.layers
     SET is_enabled = true, updated_at = now()
-    WHERE dataset_id = dataset_row.id;
+    WHERE dataset_id = dataset_row.id
+      AND slug IN ('roads', 'places', 'buildings', 'water');
 
     UPDATE public.ingestion_jobs
     SET dataset_version_id = version_id,
