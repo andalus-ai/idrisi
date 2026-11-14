@@ -50,7 +50,10 @@ fn validate_identifier(value: &str) -> io::Result<()> {
     if valid {
         Ok(())
     } else {
-        Err(io::Error::new(io::ErrorKind::InvalidInput, "unsafe staging schema identifier"))
+        Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "unsafe staging schema identifier",
+        ))
     }
 }
 
@@ -60,7 +63,10 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn temp_path(name: &str) -> std::path::PathBuf {
-        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
         std::env::temp_dir().join(format!("idrisi-{name}-{nonce}"))
     }
 
@@ -96,7 +102,10 @@ mod tests {
         fs::write(&template, "local a = { schema = 'tiles' }").unwrap();
         let namespace = StagingNamespace::for_job(Uuid::nil());
         assert_eq!(
-            namespace.render_flex_style(&template, &output).unwrap_err().kind(),
+            namespace
+                .render_flex_style(&template, &output)
+                .unwrap_err()
+                .kind(),
             io::ErrorKind::InvalidData
         );
         let _ = fs::remove_file(template);
