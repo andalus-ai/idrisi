@@ -23,10 +23,13 @@ jobs:
         run: cp .env.example .env
       - name: Compose config
         run: docker compose -f compose.yaml config --quiet
+      - name: PostGIS migration and publication privilege gates
+        run: bash scripts/integration/postgis-publication-gates.sh
       - name: Ingestion and smoke-test script syntax
         run: |
           bash -n scripts/ingest/osm-bandung.sh
           bash -n scripts/smoke/test-vector-tiles.sh
+          bash -n scripts/integration/postgis-publication-gates.sh
       - name: TypeScript SDK
         working-directory: sdks/typescript
         run: |
