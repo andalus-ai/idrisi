@@ -6,7 +6,8 @@ The first supported deployment is a single Linux host using Docker Compose. This
 
 ## Logical services
 
-- `idrisi-gateway`: Rust/Axum public API.
+- `iket`: Iket API gateway for public ingress and upstream routing.
+- `idrisi-api`: Rust domain API, private upstream behind Iket.
 - `postgres`: PostgreSQL with PostGIS extension.
 - `martin`: vector tile server connected to PostGIS.
 - `valhalla`: routing engine and versioned graph data.
