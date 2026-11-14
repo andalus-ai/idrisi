@@ -53,7 +53,7 @@ flowchart TB
   Ingest --> Router
   Ingest --> PM
 
-  Ops[Metrics / Logs / Traces / Backups] -.-> Gateway
+  Ops[Metrics / Logs / Traces / Backups] -.-> Iket
   Ops -.-> Ingest
 ```
 
@@ -61,16 +61,11 @@ The diagram is conceptual. Individual services may be co-located in the initial 
 
 ## 4. Service responsibilities
 
-### API gateway — Rust/Axum
+### Iket API gateway
 
-- Public entry point and versioned API routing
-- Authentication and authorization integration
-- API keys, quotas, rate limits, and request limits
-- Request IDs, structured logs, metrics, and tracing
-- Provider selection and response normalization
-- CORS and reverse-proxy-aware configuration
+Iket is the only public gateway and is maintained independently at https://github.com/andalus-ai/iket. It owns public ingress, TLS, upstream routing, configured authentication/API-key policies, rate limits, traffic controls, and gateway administration. Keep its management/admin surfaces private and protected by the deployed version's supported controls.
 
-The gateway should not become a monolith containing heavy geospatial algorithms. CPU-heavy processing belongs in specialized workers or external engines.
+Do not create a second public gateway inside Idrisi. The gateway should not contain heavy geospatial algorithms.
 
 ### Dataset and layer catalog
 
@@ -146,8 +141,8 @@ Persistent data volumes must be separated by purpose: database, source/staging, 
 ## 9. Quality attributes
 
 - **Availability:** health/readiness probes, graceful degradation, independent provider health.
-- **Performance:** bounded queries, tile caching, connection pooling, async gateway I/O, and load tests.
-- **Scalability:** stateless gateway replicas; independently scaled tile, routing, and ingestion components.
+- **Performance:** bounded queries, tile caching, connection pooling, async domain API I/O, and load tests.
+- **Scalability:** stateless domain API replicas behind Iket; independently scaled tile, routing, and ingestion components.
 - **Correctness:** dataset versioning, CRS validation, geometry checks, graph/map version metadata.
 - **Security:** authentication, scoped authorization, quotas, least-privilege service credentials.
 - **Portability:** Compose-first deployment with documented migration path to orchestrated environments.
