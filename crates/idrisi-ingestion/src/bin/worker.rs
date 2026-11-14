@@ -49,34 +49,43 @@ impl Config {
             return Err("IDRISI_WORKER_ALLOWED_HOSTS must contain at least one host".into());
         }
 
+        let max_source_bytes = env::var("IDRISI_WORKER_MAX_SOURCE_BYTES")
+            .unwrap_or_else(|_| (20_u64 * 1024 * 1024 * 1024).to_string())
+            .parse::<u64>()?;
+        let poll_interval = Duration::from_secs(
+            env::var("IDRISI_WORKER_POLL_SECONDS")
+                .unwrap_or_else(|_| "5".to_owned())
+                .parse()?,
+        );
+        let lease_duration = Duration::from_secs(
+            env::var("IDRISI_WORKER_LEASE_SECONDS")
+                .unwrap_or_else(|_| "300".to_owned())
+                .parse()?,
+        );
+        let heartbeat_interval = Duration::from_secs(
+            env::var("IDRISI_WORKER_HEARTBEAT_SECONDS")
+                .unwrap_or_else(|_| "30".to_owned())
+                .parse()?,
+        );
+        let request_timeout = Duration::from_secs(
+            env::var("IDRISI_WORKER_REQUEST_TIMEOUT_SECONDS")
+                .unwrap_or_else(|_| "14400".to_owned())
+                .parse()?,
+        );
+        if max_source_bytes == 0 || poll_interval.is_zero() || heartbeat_interval.is_zero() || request_timeout.is_zero() {
+            return Err("worker byte and duration settings must be positive".into());
+        }
+
         Ok(Self {
             database_url,
             worker_id,
             data_dir,
             allowed_hosts,
-            max_source_bytes: env::var("IDRISI_WORKER_MAX_SOURCE_BYTES")
-                .unwrap_or_else(|_| (20_u64 * 1024 * 1024 * 1024).to_string())
-                .parse()?,
-            poll_interval: Duration::from_secs(
-                env::var("IDRISI_WORKER_POLL_SECONDS")
-                    .unwrap_or_else(|_| "5".to_owned())
-                    .parse()?,
-            ),
-            lease_duration: Duration::from_secs(
-                env::var("IDRISI_WORKER_LEASE_SECONDS")
-                    .unwrap_or_else(|_| "300".to_owned())
-                    .parse()?,
-            ),
-            heartbeat_interval: Duration::from_secs(
-                env::var("IDRISI_WORKER_HEARTBEAT_SECONDS")
-                    .unwrap_or_else(|_| "30".to_owned())
-                    .parse()?,
-            ),
-            request_timeout: Duration::from_secs(
-                env::var("IDRISI_WORKER_REQUEST_TIMEOUT_SECONDS")
-                    .unwrap_or_else(|_| "14400".to_owned())
-                    .parse()?,
-            ),
+            max_source_bytes,
+            poll_interval,
+            lease_duration,
+            heartbeat_interval,
+            request_timeout,
         })
     }
 }
@@ -143,8 +152,8 @@ async fn process_job(repository: &JobRepository, job: ClaimedJob, config: &Confi
     let job_id = job.id;
     let lease_token = job.lease_token;
     let work = async {
-        if job.job_type != "osm.pbf.stage" {
-            return Err("unsupported job type".to_owned());
+        if job.job_type != "osm.pbf.stage" || job.importer_name != "geofabrik-pbf-download" {
+            return Err("job type or importer is not registered by this worker".to_owned());
         }
         if !job.source_uri.to_ascii_lowercase().ends_with(".osm.pbf") {
             return Err("source must be an .osm.pbf file".to_owned());
@@ -178,6 +187,7 @@ async fn process_job(repository: &JobRepository, job: ClaimedJob, config: &Confi
         if let Some(expected) = job.source_checksum.as_deref() {
             let expected = expected.strip_prefix("sha256:").unwrap_or(expected);
             if !expected.eq_ignore_ascii_case(&receipt.sha256) {
+                let _ = tokio::fs::remove_file(&destination).await;
                 return Err("source SHA-256 did not match the queued checksum".to_owned());
             }
         }
