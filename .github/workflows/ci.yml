@@ -20,7 +20,7 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - name: Compose config
-        run: docker compose config --quiet
+        run: docker compose -f docker-compose.yaml config --quiet
       - name: Ingestion and smoke-test script syntax
         run: |
           bash -n scripts/ingest/osm-bandung.sh
