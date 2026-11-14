@@ -14,6 +14,7 @@ use std::{
 };
 use tracing::{error, info, warn};
 use uuid::Uuid;
+use tokio::sync::watch;
 
 type WorkerError = Box<dyn Error + Send + Sync>;
 const SUPPORTED_JOB_TYPES: &[&str] = &["osm.pbf.stage"];
@@ -118,9 +119,18 @@ async fn main() -> Result<(), WorkerError> {
         "Idrisi ingestion worker started"
     );
 
+    let (shutdown_tx, mut shutdown_rx) = watch::channel(false);
+    tokio::spawn(async move {
+        shutdown_signal().await;
+        let _ = shutdown_tx.send(true);
+    });
+
     loop {
+        if *shutdown_rx.borrow() {
+            break;
+        }
         tokio::select! {
-            _ = shutdown_signal() => {
+            _ = shutdown_rx.changed() => {
                 info!("shutdown requested; worker will stop claiming new jobs");
                 break;
             }
@@ -133,7 +143,7 @@ async fn main() -> Result<(), WorkerError> {
                 match result {
                     Ok(Some(job)) => {
                         info!(job_id = %job.id, job_type = %job.job_type, attempt = job.attempt_count, "claimed ingestion job");
-                        process_job(&repository, job, &config).await;
+                        process_job(&repository, job, &config, shutdown_rx.clone()).await;
                     }
                     Ok(None) => tokio::time::sleep(config.poll_interval).await,
                     Err(error) => {
@@ -149,9 +159,17 @@ async fn main() -> Result<(), WorkerError> {
     Ok(())
 }
 
-async fn process_job(repository: &JobRepository, job: ClaimedJob, config: &Config) {
+async fn process_job(
+    repository: &JobRepository,
+    job: ClaimedJob,
+    config: &Config,
+    mut shutdown: watch::Receiver<bool>,
+) {
     let job_id = job.id;
     let lease_token = job.lease_token;
+    let attempt_dir = config.data_dir
+        .join(job_id.to_string())
+        .join(format!("attempt-{}-{}", job.attempt_count, lease_token));
     let work = async {
         if job.job_type != "osm.pbf.stage" || job.importer_name != "geofabrik-pbf-download" {
             return Err("job type or importer is not registered by this worker".to_owned());
@@ -165,7 +183,6 @@ async fn process_job(repository: &JobRepository, job: ClaimedJob, config: &Confi
             .await
             .map_err(|error| error.to_string())?;
 
-        let attempt_dir = config.data_dir.join(job_id.to_string()).join(format!("attempt-{}", job.attempt_count));
         tokio::fs::create_dir_all(&attempt_dir)
             .await
             .map_err(|error| format!("could not create job staging directory: {error}"))?;
@@ -214,6 +231,15 @@ async fn process_job(repository: &JobRepository, job: ClaimedJob, config: &Confi
             _ = heartbeat.tick() => {
                 if let Err(error) = repository.heartbeat(job_id, lease_token, config.lease_duration).await {
                     warn!(job_id = %job_id, %error, "worker lost its lease; abandoning current handler");
+                    let _ = tokio::fs::remove_dir_all(&attempt_dir).await;
+                    return;
+                }
+            }
+            changed = shutdown.changed() => {
+                if changed.is_ok() && *shutdown.borrow() {
+                    warn!(job_id = %job_id, "shutdown requested; releasing job without consuming an attempt");
+                    let _ = repository.release(job_id, lease_token).await;
+                    let _ = tokio::fs::remove_dir_all(&attempt_dir).await;
                     return;
                 }
             }
