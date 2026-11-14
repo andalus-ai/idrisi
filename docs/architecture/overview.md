@@ -17,7 +17,7 @@ Idrisi is not initially intended to replace the mature GIS ecosystem. It coordin
 ## 2. Design goals
 
 - Self-hostable with Docker Compose on a single machine or server.
-- Rust-first for Idrisi-owned services and contracts.
+- Rust-first for Idrisi-owned domain services and contracts.
 - Engine/provider agnostic.
 - Versioned datasets and reproducible ingestion.
 - Online and offline map distribution.
@@ -28,14 +28,14 @@ Idrisi is not initially intended to replace the mature GIS ecosystem. It coordin
 
 ```mermaid
 flowchart TB
-  Clients[Web / Mobile / Jezaku / SDKs] --> Gateway[Axum API Gateway]
-  Gateway --> Auth[Identity & Policy]
-  Gateway --> Catalog[Dataset & Layer Catalog]
-  Gateway --> Spatial[Spatial API]
-  Gateway --> Geo[Geocoding API]
-  Gateway --> Route[Routing API]
-  Gateway --> Tiles[Tile API / Proxy]
-  Gateway --> Offline[Offline Package API]
+  Clients[Web / Mobile / Jezaku / SDKs] --> Iket[Iket API Gateway]
+  Iket --> API[Idrisi Domain API - Rust]
+  API --> Catalog[Dataset & Layer Catalog]
+  API --> Spatial[Spatial API]
+  API --> Geo[Geocoding API]
+  API --> Route[Routing API]
+  API --> Tiles[Tile API / Proxy]
+  API --> Offline[Offline Package API]
 
   Catalog --> PG[(PostgreSQL + PostGIS)]
   Spatial --> PG
@@ -139,7 +139,7 @@ Layer domains are extensible. The initial platform should implement common vecto
 
 ## 8. Initial deployment topology
 
-Docker Compose starts the gateway, PostgreSQL/PostGIS, Martin, Valhalla, geocoder (when enabled), object storage (optional), and observability components. Heavy ingestion pipelines can run as one-shot jobs or dedicated workers rather than always-on services.
+Docker Compose starts Iket, the private Idrisi domain API, PostgreSQL/PostGIS, Martin, Valhalla, geocoder (when enabled), object storage (optional), and observability components. Heavy ingestion pipelines can run as one-shot jobs or dedicated workers rather than always-on services.
 
 Persistent data volumes must be separated by purpose: database, source/staging, generated tiles, routing graphs, raster assets, and backups. A production single-server deployment should use external backup storage and a tested restore procedure.
 
