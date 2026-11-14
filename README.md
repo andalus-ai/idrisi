@@ -40,7 +40,7 @@ See [Architecture](docs/architecture/overview.md), [Iket integration](docs/integ
 
 ## Repository status
 
-The repository contains the Rust domain API, PostGIS catalog migrations, a private Martin vector-tile service, Iket route examples, a one-shot Bandung OSM ingestion pipeline, and a MapLibre reference viewer. The pilot dataset is registered in the catalog but has not yet been imported in a live environment; the `tiles` schema remains empty until an operator runs the ingestion script. Incremental updates, MapLibre rendering, routing, geocoding, and raster serving remain planned.
+The repository contains the Rust domain API, PostGIS catalog migrations, a private Martin vector-tile service, Iket route examples, a one-shot Bandung OSM import script, a queue-backed source-staging worker, and a MapLibre reference viewer. The pilot dataset is registered in the catalog but has not yet been imported in a live environment; the `tiles` schema remains empty until an operator runs the ingestion script. Incremental updates, MapLibre rendering, routing, geocoding, and raster serving remain planned.
 
 ## Development
 
