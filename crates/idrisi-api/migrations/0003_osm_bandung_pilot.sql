@@ -20,7 +20,7 @@ INSERT INTO data_sources (
 SELECT
     'OpenStreetMap via Geofabrik Java extract',
     'osm_pbf',
-    'https://download.geofabrik.de/asia/indonesia/java-latest.osm.pbf',
+    'https://download.geofabrik.de/asia/indonesia/java-261112.osm.pbf',
     'ODbL-1.0',
     'https://opendatacommons.org/licenses/odbl/1-0/',
     '© OpenStreetMap contributors',
