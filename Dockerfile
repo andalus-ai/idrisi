@@ -9,11 +9,12 @@ COPY crates/idrisi-api/migrations crates/idrisi-api/migrations
 COPY crates/idrisi-ingestion/Cargo.toml crates/idrisi-ingestion/Cargo.toml
 COPY crates/idrisi-ingestion/src crates/idrisi-ingestion/src
 
-RUN cargo build --release -p idrisi-api
+RUN cargo build --release -p idrisi-api -p idrisi-ingestion --bins
 
 FROM debian:bookworm-slim AS runtime
 RUN useradd --system --uid 10001 --create-home idrisi
 COPY --from=builder /app/target/release/idrisi-api /usr/local/bin/idrisi-api
+COPY --from=builder /app/target/release/idrisi-worker /usr/local/bin/idrisi-worker
 
 USER 10001:10001
 EXPOSE 8080
