@@ -13,7 +13,9 @@ CREATE INDEX ingestion_jobs_source_job_idx
 
 CREATE UNIQUE INDEX ingestion_jobs_publish_source_unique
     ON ingestion_jobs(source_job_id)
-    WHERE job_type = 'osm.dataset.publish' AND source_job_id IS NOT NULL;
+    WHERE job_type = 'osm.dataset.publish'
+      AND source_job_id IS NOT NULL
+      AND status IN ('queued', 'running', 'succeeded');
 
 -- Publisher owns live/archive tables. Martin only receives SELECT on the live tables.
 CREATE SCHEMA IF NOT EXISTS idrisi_archive AUTHORIZATION idrisi;
