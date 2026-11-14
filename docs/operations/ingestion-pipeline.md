@@ -124,3 +124,30 @@ Both functions are `SECURITY INVOKER`; they do not elevate privileges. The inges
 The functions lock and verify the job row before performing DDL. A stale worker cannot create or drop a namespace after its lease has been reclaimed. Schema identifiers are generated from the UUID token and passed through PostgreSQL identifier quoting; no job-supplied schema string is executed.
 
 Before deploying this migration, configure a dedicated ingestion role and verify its database/schema privileges in an integration test. The worker's table validator expects the four reviewed flex tables (`osm_roads`, `osm_places`, `osm_buildings`, `osm_water`) in the generated data schema. This migration creates namespaces only; it does not publish them or make them visible to Martin.
+
+
+## Atomic dataset publication
+
+Migration `0005_atomic_dataset_publication.sql` adds the dataset's `active_version_id`, records the staging schema and source import job on each dataset version, and creates a publication event ledger.
+
+The publisher calls `idrisi_publish_osm_dataset(publication_job_id, lease_token)`. The function locks the publication job, source import job, and dataset; verifies the current unexpired fencing token; verifies that the source job succeeded as an `osm.pbf.import` job with the `imported_validated_unpublished` result; checks the UUID-derived staging schema and the four expected tables; then creates the dataset-version record, supersedes the prior active version, switches the dataset's active-version pointer, writes an audit event, and marks the publication job succeeded in one database transaction.
+
+The active-version pointer is the catalog's authoritative version selector. Readers must resolve the dataset through this pointer, not by selecting the newest row by timestamp. A transaction rollback leaves the previous pointer and version status unchanged. The publication function is idempotent with respect to the source import/version identity; a failed transaction leaves no partial version or audit event.
+
+### Important serving boundary
+
+This migration does **not** expose the staging schema to Martin and does not create public tile sources. The current Martin contract only discovers tables in the dedicated `tiles` schema. The publisher records which immutable staging schema is active; a separate, reviewed tile-serving adapter must resolve that active pointer and expose versioned tables/views before the new data is visible to map clients. Do not grant Martin access to `idrisi_stage_*` schemas or point it at the catalog migration role.
+
+### Required database ownership and grants
+
+The publication function is `SECURITY DEFINER` because it performs a tightly-scoped multi-table catalog transition. Its owner must be the dedicated migration/catalog owner, not the runtime worker. Keep the function's fixed search path, revoke PUBLIC execution, and grant execution only to the publisher role after reviewing the deployment role names. The publisher must not receive direct UPDATE privileges on `datasets`, `dataset_versions`, or publication events. The worker must not receive execute permission on the publication function.
+
+### Acceptance tests before production
+
+1. Publish a valid source import and assert exactly one published version, one audit event, a completed publication job, and an updated active pointer.
+2. Publish a replacement and assert the previous version becomes `superseded` while the new one becomes active.
+3. Force a failure after version insertion but before job completion and assert the entire transaction rolls back.
+4. Attempt publication with an expired, replaced, or unrelated lease token and assert no catalog state changes.
+5. Attempt publication for a source job from another dataset, a failed job, a non-import job, or a source without the expected validation marker and assert rejection.
+6. Verify Martin's database role cannot read `idrisi_stage_*` schemas and cannot execute the publication function.
+7. Verify catalog readers resolve only `datasets.active_version_id`, never the most recent created version.
