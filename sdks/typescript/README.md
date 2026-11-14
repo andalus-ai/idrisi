@@ -44,7 +44,7 @@ const map = new maplibregl.Map({
 });
 ```
 
-The source URL is generated from the configured public Iket prefix instead of trusting TileJSON URLs that may expose Martin's private hostname. Confirm Iket maps `/tiles/{source}/{z}/{x}/{y}` to the corresponding Martin endpoint.
+The source URL is generated from the configured public Iket prefix instead of trusting TileJSON URLs that may expose Martin's private hostname. MapLibre's request-transform hook is synchronous: it uses the current static token set on the client. When an application refreshes credentials, call `client.setToken(newToken)` before subsequent tile requests. The asynchronous `tokenProvider` is used for SDK Fetch calls, not for MapLibre's synchronous tile hook. Confirm Iket maps `/tiles/{source}/{z}/{x}/{y}` to the corresponding Martin endpoint.
 
 ## Initial coverage
 
