@@ -393,7 +393,6 @@ pub mod process {
     }
 }
 
-
 #[cfg(test)]
 mod acquisition_tests {
     use super::acquisition::{download, DownloadError, DownloadPolicy};
