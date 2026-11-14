@@ -63,6 +63,6 @@ Optional `source_checksum` should contain the expected SHA-256 hex digest (or `s
 - Heartbeat, stage, retry, and completion updates require the current unexpired fencing token.
 - Unsupported job types are not claimed by this worker.
 - Retry delays use bounded exponential backoff (30 seconds up to 16 minutes).
-- A worker stops claiming new jobs on SIGINT/SIGTERM. An in-flight source download is allowed to finish; if the process is forcibly terminated, its lease expires and another worker can reclaim it.
+- A worker stops claiming new jobs on SIGINT/SIGTERM. If a source download is in flight, it cancels the handler, removes that attempt's partial artifact, and releases the job back to the queue without consuming a retry attempt.
 - Each attempt uses a distinct artifact path so a retry never overwrites a previously downloaded file.
 - Retention/garbage collection for failed and superseded attempt artifacts is a follow-up operational task.
