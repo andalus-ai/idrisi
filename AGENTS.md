@@ -8,17 +8,17 @@ Build a self-hosted, API-first geospatial platform, Indonesia-first, supporting 
 
 ## Non-negotiable architecture rules
 
-1. **Rust-first platform, not rewrite-everything.** Use Rust for Idrisi-owned services, domain models, orchestration, adapters, and gateway code. Integrate mature systems such as PostgreSQL/PostGIS, Martin, GDAL, PROJ, Valhalla, Nominatim, and other engines as external processes/services.
+1. **Rust-first platform, not rewrite-everything.** Use Rust for Idrisi-owned domain APIs, models, orchestration, and adapters. Use Iket as the only public API gateway; integrate PostgreSQL/PostGIS, Martin, GDAL, PROJ, Valhalla, and geocoders as external services.
 2. **Iket owns the gateway layer.** Do not create a parallel Idrisi public gateway or duplicate Iket routing, TLS, authentication, rate-limiting, circuit-breaking, or administration features. Idrisi services own domain-level authorization and geospatial behavior.
 3. **Stable provider contracts.** Domain services must depend on Idrisi interfaces, not vendor-specific SDKs or response formats. Keep provider-specific behavior inside adapters.
-3. **Separate data classes.** Distinguish source datasets, normalized/derived datasets, operational indexes/graphs, rendered tiles, and user-authored data. Track provenance and versions.
-4. **Do not put large data in Git.** No PBF files, raster imagery, tile archives, routing graphs, database dumps, or generated datasets in the repository. Use ignored local data directories, volumes, or object storage.
-5. **No silent license assumptions.** Before ingesting, transforming, serving, or redistributing a dataset, record its license, attribution, restrictions, and redistribution conditions.
-6. **API-first integration.** Publish versioned OpenAPI contracts. Keep internal implementation details out of public response schemas.
-7. **Security by default.** Validate inputs, use parameterized SQL, enforce authorization at the gateway and service boundary where appropriate, avoid logging secrets or precise sensitive user locations, and document trust boundaries.
-8. **Offline is a product capability.** Regional packages must be versioned, checksummed, resumable, and independently updateable.
-9. **Reproducible operations.** Document configuration, persistent volumes, health checks, backups, restore procedures, and data update workflows.
-10. **Measure before optimizing.** Establish correctness tests and baseline latency/resource measurements before introducing caches, custom indexes, or bespoke engines.
+4. **Separate data classes.** Distinguish source datasets, normalized/derived datasets, operational indexes/graphs, rendered tiles, and user-authored data. Track provenance and versions.
+5. **Do not put large data in Git.** No PBF files, raster imagery, tile archives, routing graphs, database dumps, or generated datasets in the repository. Use ignored local data directories, volumes, or object storage.
+6. **No silent license assumptions.** Before ingesting, transforming, serving, or redistributing a dataset, record its license, attribution, restrictions, and redistribution conditions.
+7. **API-first integration.** Publish versioned OpenAPI contracts. Keep internal implementation details out of public response schemas.
+8. **Security by default.** Validate inputs, use parameterized SQL, enforce domain/resource authorization in Idrisi services, avoid logging secrets or precise sensitive user locations, and document trust boundaries.
+9. **Offline is a product capability.** Regional packages must be versioned, checksummed, resumable, and independently updateable.
+10. **Reproducible operations.** Document configuration, persistent volumes, health checks, backups, restore procedures, and data update workflows.
+11. **Measure before optimizing.** Establish correctness tests and baseline latency/resource measurements before introducing caches, custom indexes, or bespoke engines.
 
 ## Repository conventions
 
