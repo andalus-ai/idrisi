@@ -52,7 +52,7 @@ The import job derives its bounding box from the registered dataset coverage. It
 ```sql
 INSERT INTO ingestion_jobs (
     dataset_id, job_type, idempotency_key, source_uri, importer_name,
-    importer_version, max_attempts, requested_by
+    max_attempts, requested_by
 )
 SELECT
     dataset.id,
@@ -60,7 +60,6 @@ SELECT
     'osm-bandung-import-v1',
     source.source_uri,
     'osm2pgsql-flex',
-    'debian-bookworm',
     3,
     'operator'
 FROM datasets AS dataset
@@ -83,7 +82,7 @@ Each lease attempt generates `idrisi_stage_<lease-uuid>` for flex output and `id
 | `IDRISI_WORKER_LEASE_SECONDS` | 300 | Database lease duration |
 | `IDRISI_WORKER_HEARTBEAT_SECONDS` | 30 | Lease renewal cadence |
 | `IDRISI_WORKER_REQUEST_TIMEOUT_SECONDS` | 14400 | Maximum source download duration |
-| `IDRISI_OSMIUM_PATH` | `/usr/bin/osmium` | Pinned osmium-tool executable path |
+| `IDRISI_OSMIUM_PATH` | `/usr/bin/osmium` | osmium-tool executable path |
 | `IDRISI_WORKER_INSPECTION_TIMEOUT_SECONDS` | 1800 | Maximum full-file PBF inspection duration |
 | `IDRISI_OSM2PGSQL_PATH` | `/usr/bin/osm2pgsql` | osm2pgsql flex executable |
 | `IDRISI_OSM_STYLE_PATH` | `/opt/idrisi/osm2pgsql/bandung.lua` | Reviewed flex style template |
@@ -106,7 +105,7 @@ Each lease attempt generates `idrisi_stage_<lease-uuid>` for flex output and `id
 ## Per-job staging namespace preparation
 
 The ingestion crate now exposes `staging::StagingNamespace`. It derives distinct,
-PostgreSQL-safe data and osm2pgsql middle-schema identifiers from the job UUID.
+PostgreSQL-safe data and osm2pgsql middle-schema identifiers from the lease UUID.
 Its flex-style renderer redirects the four reviewed `schema = 'tiles'` declarations
 in the committed Bandung Lua profile into the job's data schema. It fails closed
 if the template no longer contains exactly four declarations.
