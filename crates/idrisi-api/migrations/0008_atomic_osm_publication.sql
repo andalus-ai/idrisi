@@ -1,4 +1,9 @@
 -- A publication job explicitly references a previously validated import job.
+DO $ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'idrisi_publish') THEN
+        CREATE ROLE idrisi_publish NOLOGIN;
+    END IF;
+END $;
 ALTER TABLE ingestion_jobs
     ADD COLUMN source_job_id uuid REFERENCES ingestion_jobs(id) ON DELETE RESTRICT;
 
