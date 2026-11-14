@@ -191,11 +191,11 @@ async fn process_job(
             .map_err(|_| "publication job lease was lost".to_owned())?;
 
         let result = sqlx::query_scalar::<_, Value>("SELECT idrisi_publish_osm_dataset($1, $2)")
-        .bind(job_id)
-        .bind(lease_token)
-        .fetch_one(pool)
-        .await
-        .map_err(|error| format!("atomic publication transaction failed: {error}"))?;
+            .bind(job_id)
+            .bind(lease_token)
+            .fetch_one(pool)
+            .await
+            .map_err(|error| format!("atomic publication transaction failed: {error}"))?;
 
         Ok(serde_json::json!({
             "publication": result,

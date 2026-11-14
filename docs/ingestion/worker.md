@@ -68,7 +68,7 @@ WHERE dataset.slug = 'osm-bandung-pilot'
 ON CONFLICT (idempotency_key) DO NOTHING;
 ```
 
-Each lease attempt generates `idrisi_stage_<lease-uuid>` for flex output and `idrisi_mid_<lease-uuid>` for osm2pgsql slim state. Fixed `SECURITY DEFINER` functions create/drop only these UUID-derived names; job payloads cannot supply schema names or DDL. Validation checks all four expected layers, non-empty roads, null/empty/invalid geometry, SRID 4326, and extents inside dataset coverage. Successful staging schemas remain unpublished and invisible to Martin. Failed jobs drop their attempt schemas; hard process loss may leave orphan schemas for retention cleanup.
+Each lease attempt generates `idrisi_stage_<lease-uuid>` for flex output and `idrisi_mid_<lease-uuid>` for osm2pgsql slim state. Fixed `SECURITY DEFINER` functions create/drop only these UUID-derived names; job payloads cannot supply schema names or DDL. Validation checks all four expected layers, non-empty roads, null/empty/invalid geometry, SRID 4326, and feature geometries intersecting the registered dataset coverage. Successful staging schemas remain unpublished and invisible to Martin. Failed jobs drop their attempt schemas; hard process loss may leave orphan schemas for retention cleanup.
 
 
 ## Dataset publisher
