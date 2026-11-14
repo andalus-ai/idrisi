@@ -34,3 +34,7 @@ See [worker operations](worker.md) for deployment, configuration and the operato
 ## Next work
 
 Dataset publication and Martin-visible table swaps remain a separate, explicitly transactional operation. The worker role has no `USAGE` or `CREATE` privilege on the published `tiles` schema and cannot update dataset/layer publication state.
+
+## Publication jobs
+
+`osm.dataset.publish` jobs must reference a successful, validated `osm.pbf.import` job through `source_job_id`. The dedicated publisher revalidates the source staging schema and promotes it in one transaction. The transaction records a `dataset_versions` row, archives the previous stable tables, moves the replacement layers into `tiles`, updates dataset/layer state, and completes the publication job atomically. See [Dataset publication](publication.md) for the enqueue SQL and operational details.
