@@ -8,6 +8,7 @@ pub mod repository;
 pub mod staging;
 pub mod inspector;
 pub mod worker;
+pub mod osm_import;
 
 use std::{ffi::OsString, path::PathBuf};
 
