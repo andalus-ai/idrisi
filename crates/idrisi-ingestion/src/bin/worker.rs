@@ -1,6 +1,7 @@
 use chrono::Duration as ChronoDuration;
 use idrisi_ingestion::{
     acquisition::{download, DownloadPolicy},
+    inspector::{inspect, InspectionPolicy},
     repository::{ClaimedJob, JobRepository, JobStage},
 };
 use serde_json::{json, Value};
@@ -23,6 +24,9 @@ struct Config {
     lease_duration: Duration,
     heartbeat_interval: Duration,
     request_timeout: Duration,
+    osmium_bin: String,
+    inspection_timeout: Duration,
+    max_inspection_report_bytes: usize,
 }
 
 impl Config {
@@ -68,10 +72,22 @@ impl Config {
                 .unwrap_or_else(|_| "14400".to_owned())
                 .parse()?,
         );
+        let osmium_bin = env::var("IDRISI_WORKER_OSMIUM_BIN")
+            .unwrap_or_else(|_| "/usr/bin/osmium".to_owned());
+        let inspection_timeout = Duration::from_secs(
+            env::var("IDRISI_WORKER_INSPECTION_TIMEOUT_SECONDS")
+                .unwrap_or_else(|_| "1800".to_owned())
+                .parse()?,
+        );
+        let max_inspection_report_bytes = env::var("IDRISI_WORKER_MAX_INSPECTION_REPORT_BYTES")
+            .unwrap_or_else(|_| (2 * 1024 * 1024).to_string())
+            .parse::<usize>()?;
         if max_source_bytes == 0
             || poll_interval.is_zero()
             || heartbeat_interval.is_zero()
             || request_timeout.is_zero()
+            || inspection_timeout.is_zero()
+            || max_inspection_report_bytes == 0
         {
             return Err("worker byte and duration settings must be positive".into());
         }
@@ -86,6 +102,9 @@ impl Config {
             lease_duration,
             heartbeat_interval,
             request_timeout,
+            osmium_bin,
+            inspection_timeout,
+            max_inspection_report_bytes,
         })
     }
 }
@@ -216,12 +235,38 @@ async fn process_job(
             }
         }
 
+        repository
+            .set_stage(job_id, lease_token, JobStage::Inspecting, 90)
+            .await
+            .map_err(|error| error.to_string())?;
+        let inspection = inspect(
+            &destination,
+            &InspectionPolicy {
+                executable: config.osmium_bin.clone(),
+                deadline: config.inspection_timeout,
+                max_json_bytes: config.max_inspection_report_bytes,
+            },
+        )
+        .await
+        .map_err(|error| error.to_string())?;
+
         Ok(json!({
             "artifact": "source.osm.pbf",
             "artifact_path": destination,
             "bytes": receipt.bytes,
             "sha256": receipt.sha256,
             "source_uri": job.source_uri,
+            "pbf": {
+                "file_size_bytes": inspection.file_size_bytes,
+                "nodes": inspection.nodes,
+                "ways": inspection.ways,
+                "relations": inspection.relations,
+                "bbox": inspection.bbox,
+                "first_timestamp": inspection.first_timestamp,
+                "last_timestamp": inspection.last_timestamp,
+                "replication_timestamp": inspection.replication_timestamp,
+                "replication_sequence": inspection.replication_sequence
+            },
             "state": "staged",
             "next_step": "osm.pbf.import"
         }))
