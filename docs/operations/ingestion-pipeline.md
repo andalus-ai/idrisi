@@ -31,6 +31,12 @@ The `ingestion_jobs` table is the durable control-plane record. Workers claim qu
 
 A job is not successful until publication commits. If publication fails, the prior published version remains active.
 
+## Initial Rust importer adapter
+
+The `idrisi-ingestion` crate now contains an `Osm2pgsqlConfig` and deterministic invocation builder. It creates an argument vector (never a shell string), validates PostgreSQL database/role/staging-schema identifiers, and deliberately excludes passwords from command-line arguments. The caller must inject credentials from a secret source when spawning the child process.
+
+This is an adapter foundation, not a running worker. The job poller, PBF acquisition and inspection, process supervision, Lua flex style, staging validation, and atomic publication still need implementation. Pin and test the exact osm2pgsql image/CLI before real imports.
+
 ## Initial importer contract
 
 Use `osm2pgsql` in a pinned worker image. The orchestration layer owns job lifecycle, provenance, limits, validation, and publication; the importer owns PBF decoding and OSM-to-PostGIS loading. Keep importer invocation behind an adapter so another importer can be evaluated without changing catalog semantics.
