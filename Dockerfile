@@ -4,6 +4,7 @@ WORKDIR /app
 COPY Cargo.toml rust-toolchain.toml ./
 COPY crates/idrisi-api/Cargo.toml crates/idrisi-api/Cargo.toml
 COPY crates/idrisi-api/src crates/idrisi-api/src
+COPY crates/idrisi-api/migrations crates/idrisi-api/migrations
 
 RUN cargo build --release -p idrisi-api
 
