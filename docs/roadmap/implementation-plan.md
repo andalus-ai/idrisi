@@ -11,7 +11,14 @@
 
 ## Delivery strategy
 
-Build a vertical slice early: start Iket and the private Idrisi API, register an Indonesia dataset, query PostGIS, serve a vector tile, render it in MapLibre, and expose it through Iket. Then add routing and geocoding, followed by raster/terrain, offline packaging, and specialist chart domains.
+Build a vertical slice early: start the private Idrisi API, PostGIS, and Martin; attach Iket as the independently deployed public gateway; register an Indonesia dataset, query PostGIS, serve a vector tile, render it in MapLibre, and expose it through Iket. Then add routing and geocoding, followed by raster/terrain, offline packaging, and specialist chart domains.
+
+## Implementation status (2026-11-14)
+
+- **Foundation:** Rust workspace, health endpoints, CI, PostGIS Compose service, SQLx migrations, and catalog read endpoints are implemented.
+- **Catalog:** source, dataset, version, layer, licensing, attribution, and coverage schema is implemented; catalog writes and ingestion are not.
+- **Vector tiles:** Martin 1.16.1 is configured as a private Compose service with a dedicated read-only database role; Iket route examples and the tile contract are committed.
+- **Not yet demonstrated:** live Compose startup, real tile response, Indonesia OSM import, MapLibre rendering, and Iket end-to-end gateway test. The `tiles` schema is empty until ingestion publishes data.
 
 ## Phase 0 — Repository and engineering foundation
 
@@ -35,15 +42,15 @@ Acceptance:
 **Goal:** boot Idrisi's core dependencies locally.
 
 Deliverables:
-- Docker Compose for Iket, PostGIS, Martin, and a private Rust domain API skeleton
-- Database migrations and least-privilege roles
+- Docker Compose for PostGIS, Martin, and a private Rust domain API skeleton; Iket is deployed independently and attached to the private network
+- Database migrations, catalog schema, and a dedicated read-only Martin tile role
 - Liveness/readiness endpoints
 - Structured logs, request IDs, and basic metrics
 - Local developer guide
 
 Acceptance:
 - One documented command starts the baseline stack.
-- Idrisi API reports dependency readiness; Iket routes to it through the configured private upstream.
+- Idrisi API reports PostGIS readiness; Iket routes to the API and Martin through configured private upstreams.
 - PostGIS spatial query and a test vector tile work end-to-end.
 
 ## Phase 2 — Indonesia OSM ingestion and catalog
@@ -168,9 +175,9 @@ Acceptance:
 
 ## First 2–3 implementation iterations
 
-1. **Iteration A:** Rust workspace skeleton, CI, configuration, health endpoints, Compose PostGIS/Martin, migrations.
-2. **Iteration B:** catalog schema, OSM regional ingestion, provenance manifest, first vector tile and MapLibre view.
-3. **Iteration C:** PMTiles export, Valhalla graph build/integration, route API contract and integration tests.
+1. **Iteration A — foundation completed:** Rust workspace, CI, configuration, health endpoints, PostGIS catalog schema, Compose Martin service, read-only tile role, and Iket route examples.
+2. **Iteration B — next:** Indonesia pilot OSM acquisition/import, provenance manifest, normalized `tiles` tables, first real TileJSON/MVT response, and MapLibre reference view.
+3. **Iteration C:** PMTiles export, Valhalla graph build/integration, route API contract, and end-to-end integration tests.
 
 ## Initial pilot recommendation
 
