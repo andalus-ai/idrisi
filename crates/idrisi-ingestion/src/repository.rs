@@ -200,7 +200,7 @@ impl JobRepository {
         ensure_one_row(result.rows_affected())
     }
 
-    /// Marks a job successful after the caller's publication transaction commits.
+    /// Marks a job successful after the handler's durable output has been committed.
     pub async fn complete(
         &self,
         job_id: Uuid,
