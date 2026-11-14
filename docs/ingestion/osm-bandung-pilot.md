@@ -93,3 +93,18 @@ The script records a local `data/osm/bandung-manifest.json`, which is ignored by
 - [ ] Fetch TileJSON and at least one non-empty MVT through Iket.
 - [ ] Render the sources in MapLibre and show OSM attribution.
 - [ ] Record elapsed time, peak memory, and PostGIS volume growth before expanding the area.
+
+## Gateway-to-tile smoke test
+
+After the import and Iket route are configured, run the end-to-end check from the repository root:
+
+```sh
+export IDRISI_IKET_BASE_URL='https://maps.example.com/api/idrisi'
+# Optional when the Iket route requires bearer authentication:
+export IDRISI_IKET_TOKEN='your-short-lived-token'
+bash scripts/smoke/test-vector-tiles.sh
+```
+
+The test checks all four TileJSON documents, verifies that each advertises its expected vector source-layer, then requests the representative central-Bandung tile at z12/x3272/y2126. It requires a non-empty response with a vector-tile-compatible content type. Override the tile coordinate with `IDRISI_SMOKE_TILE_Z`, `IDRISI_SMOKE_TILE_X`, and `IDRISI_SMOKE_TILE_Y` if the chosen area is sparse or the dataset extent changes.
+
+The script tests the public Iket route, not a direct Martin/PostGIS connection. It does not run in CI because CI has no live gateway or imported dataset; CI only validates its shell syntax. A passing result proves that the selected tile endpoint returns bytes, not that every feature or zoom level is cartographically correct.
