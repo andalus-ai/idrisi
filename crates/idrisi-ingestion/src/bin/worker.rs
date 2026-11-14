@@ -333,7 +333,7 @@ async fn process_job(
         result["state"] = json!("imported_validated_unpublished");
         result["next_step"] = json!("osm.dataset.publish");
         Ok(result)
-    
+    };
 
     tokio::pin!(work);
     let mut heartbeat = tokio::time::interval(config.heartbeat_interval);
