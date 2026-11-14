@@ -110,3 +110,17 @@ The migration supplies durable job metadata only. It does not yet provide a work
 The ingestion crate now provides `worker::run_with_heartbeat`. It wraps a long-running stage future, renews the job lease at a configurable interval, and drops the stage future immediately when the heartbeat fails or the fencing token is rejected. The heartbeat interval must be positive and shorter than the lease duration. Child-process stages must retain `kill_on_drop` so cancellation also stops the external process.
 
 This is a concurrency primitive, not yet the worker poller or end-to-end pipeline. It prevents a common failure mode in which a download, PBF scan, or importer keeps running after another worker has reclaimed the job. The next worker slice should compose claim → acquire → checksum → inspect → import → validate, then add a transactionally fenced handoff to publication. Do not mark a job successful before publication commits.
+
+
+## Lease-fenced staging namespace functions
+
+Migration `0004_osm_staging_namespace_functions.sql` supplies the two database functions used by the executable worker:
+
+- `idrisi_create_osm_staging_schemas(lease_token)` creates one data schema and one osm2pgsql middle schema, both derived from the active import fencing token.
+- `idrisi_drop_osm_staging_schemas(lease_token)` removes only those derived schemas and only while that same token still owns an unexpired `osm.pbf.import` lease.
+
+Both functions are `SECURITY INVOKER`; they do not elevate privileges. The ingestion database role therefore needs database-level `CREATE` privilege to create schemas and ownership/privileges sufficient to drop the schemas it created. Do not grant these functions to the API or tile-serving roles. The worker role must not be a superuser.
+
+The functions lock and verify the job row before performing DDL. A stale worker cannot create or drop a namespace after its lease has been reclaimed. Schema identifiers are generated from the UUID token and passed through PostgreSQL identifier quoting; no job-supplied schema string is executed.
+
+Before deploying this migration, configure a dedicated ingestion role and verify its database/schema privileges in an integration test. The worker's table validator expects the four reviewed flex tables (`osm_roads`, `osm_places`, `osm_buildings`, `osm_water`) in the generated data schema. This migration creates namespaces only; it does not publish them or make them visible to Martin.
