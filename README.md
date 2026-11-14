@@ -26,7 +26,8 @@ Idrisi is intended to be reusable by applications such as Jezaku without couplin
 
 ## Initial architecture
 
-- **API gateway:** Rust + Axum; authentication, authorization, rate limiting, request validation, API versioning, and provider routing.
+- **API gateway:** [Iket](https://github.com/andalus-ai/iket), a standalone Go gateway for public ingress, TLS, authentication policies, rate limiting, and upstream routing.
+- **Idrisi APIs:** Rust domain services behind Iket; Axum may be used internally, but Idrisi does not build a second public gateway.
 - **Spatial database:** PostgreSQL + PostGIS for editable and queryable spatial data.
 - **Vector tiles:** Martin as an independently deployed tile server; PMTiles for static, portable regional archives.
 - **Raster and terrain:** GDAL/PROJ-based preprocessing and pluggable raster/terrain serving.
@@ -35,7 +36,7 @@ Idrisi is intended to be reusable by applications such as Jezaku without couplin
 - **Client rendering:** MapLibre GL JS for the reference web client; mobile SDKs and other clients consume the same APIs.
 - **Operations:** Docker Compose for the first reproducible self-hosted deployment, with documented persistent volumes, backups, health checks, and observability.
 
-See [Architecture](docs/architecture/overview.md), [Implementation Plan](docs/roadmap/implementation-plan.md), and [AGENTS.md](AGENTS.md).
+See [Architecture](docs/architecture/overview.md), [Iket integration](docs/integrations/iket.md), [Implementation Plan](docs/roadmap/implementation-plan.md), and [AGENTS.md](AGENTS.md).
 
 ## Repository status
 
