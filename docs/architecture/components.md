@@ -4,7 +4,8 @@
 
 | Component | Responsibility | Initial implementation |
 |---|---|---|
-| Gateway | Public API, auth integration, quotas, routing | Axum |
+| API gateway | Public ingress, TLS, authentication policies, routing, traffic controls | Iket (Go, separate repository) |
+| Domain API | Geospatial HTTP handlers behind the gateway | Rust + Axum (internal upstream) |
 | Core | IDs, domain types, errors, shared contracts | Rust library crate |
 | Config | Typed configuration and validation | Rust library crate |
 | Catalog | Dataset/layer metadata and publication state | Axum service + PostGIS |
