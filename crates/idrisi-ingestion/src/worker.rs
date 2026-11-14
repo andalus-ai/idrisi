@@ -27,7 +27,7 @@ impl<E: std::fmt::Display> std::fmt::Display for SupervisionError<E> {
     }
 }
 
-impl<E: std::fmt::Debug + std::fmt::Display> std::error::Error for SupervisionError<E> {}
+impl<E: std::fmt::Debug + std::fmt::Display + 'static> std::error::Error for SupervisionError<E> {}
 
 /// Runs one stage while periodically renewing its lease.
 ///
