@@ -22,7 +22,7 @@ The worker uses the dedicated `idrisi_ingest` role. Its data directory is stored
 
 ## Queue a source-staging job
 
-Use a trusted operator database session. Resolve the dataset ID from its stable slug; never accept SQL or credentials from a job payload.
+Use a trusted operator database session. Resolve the dataset ID from its stable slug; never accept SQL or credentials from a job payload. Set `importer_name` to the registered value `geofabrik-pbf-download`.
 
 ```sql
 INSERT INTO ingestion_jobs (
