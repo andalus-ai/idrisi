@@ -36,7 +36,7 @@ Idrisi is intended to be reusable by applications such as Jezaku without couplin
 - **Client rendering:** MapLibre GL JS for the reference web client; mobile SDKs and other clients consume the same APIs.
 - **Operations:** Docker Compose for the first reproducible self-hosted deployment, with documented persistent volumes, backups, health checks, and observability.
 
-See [Architecture](docs/architecture/overview.md), [Iket integration](docs/integrations/iket.md), [Implementation Plan](docs/roadmap/implementation-plan.md), and [AGENTS.md](AGENTS.md).
+See [Architecture](docs/architecture/overview.md), [Iket integration](docs/integrations/iket.md), [Bandung OSM pilot ingestion](docs/ingestion/osm-bandung-pilot.md), [Implementation Plan](docs/roadmap/implementation-plan.md), and [AGENTS.md](AGENTS.md).
 
 ## Repository status
 
