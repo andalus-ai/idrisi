@@ -21,7 +21,10 @@ impl<E: std::fmt::Display> std::fmt::Display for SupervisionError<E> {
             Self::Operation(error) => write!(f, "worker stage failed: {error}"),
             Self::Lease(error) => write!(f, "worker lease supervision failed: {error}"),
             Self::InvalidHeartbeatInterval => {
-                write!(f, "heartbeat interval must be positive and shorter than the lease")
+                write!(
+                    f,
+                    "heartbeat interval must be positive and shorter than the lease"
+                )
             }
         }
     }
@@ -85,7 +88,10 @@ mod tests {
             async { Ok::<_, &'static str>(()) },
         )
         .await;
-        assert!(matches!(result, Err(SupervisionError::InvalidHeartbeatInterval)));
+        assert!(matches!(
+            result,
+            Err(SupervisionError::InvalidHeartbeatInterval)
+        ));
     }
 
     #[tokio::test]
