@@ -8,6 +8,7 @@ COPY crates/idrisi-api/migrations crates/idrisi-api/migrations
 # Cargo resolves every workspace member even when building one selected package.
 COPY crates/idrisi-ingestion/Cargo.toml crates/idrisi-ingestion/Cargo.toml
 COPY crates/idrisi-ingestion/src crates/idrisi-ingestion/src
+COPY infrastructure/osm2pgsql/bandung.lua infrastructure/osm2pgsql/bandung.lua
 
 RUN cargo build --release -p idrisi-api -p idrisi-ingestion --bins
 

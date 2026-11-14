@@ -2,17 +2,20 @@ use chrono::Duration as ChronoDuration;
 use idrisi_ingestion::{
     acquisition::{download, DownloadPolicy},
     inspector::{inspect, InspectionPolicy},
+    osm_import::{dataset_bounds, render_style, validate_import},
+    process,
     repository::{ClaimedJob, JobRepository, JobStage},
+    Osm2pgsqlConfig,
 };
 use serde_json::{json, Value};
-use sqlx::postgres::PgPoolOptions;
+use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::{collections::HashSet, env, error::Error, path::PathBuf, time::Duration};
 use tokio::sync::watch;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
 type WorkerError = Box<dyn Error + Send + Sync>;
-const SUPPORTED_JOB_TYPES: &[&str] = &["osm.pbf.stage"];
+const SUPPORTED_JOB_TYPES: &[&str] = &["osm.pbf.stage", "osm.pbf.import"];
 
 struct Config {
     database_url: String,
@@ -29,6 +32,13 @@ struct Config {
     max_inspection_report_bytes: usize,
     osmium_executable: PathBuf,
     inspection_timeout: Duration,
+    osm2pgsql_executable: PathBuf,
+    import_timeout: Duration,
+    pg_host: String,
+    pg_port: u16,
+    pg_database: String,
+    pg_username: String,
+    pg_password: String,
 }
 
 impl Config {
@@ -84,6 +94,20 @@ impl Config {
                 .unwrap_or_else(|_| "1800".to_owned())
                 .parse()?,
         );
+        let osm2pgsql_executable = PathBuf::from(
+            env::var("IDRISI_OSM2PGSQL_PATH")
+                .unwrap_or_else(|_| "/usr/bin/osm2pgsql".to_owned()),
+        );
+        let import_timeout = Duration::from_secs(
+            env::var("IDRISI_WORKER_IMPORT_TIMEOUT_SECONDS")
+                .unwrap_or_else(|_| "21600".to_owned())
+                .parse()?,
+        );
+        let pg_host = env::var("PGHOST").unwrap_or_else(|_| "postgres".to_owned());
+        let pg_port = env::var("PGPORT").unwrap_or_else(|_| "5432".to_owned()).parse()?;
+        let pg_database = env::var("PGDATABASE").unwrap_or_else(|_| "idrisi".to_owned());
+        let pg_username = env::var("PGUSER").unwrap_or_else(|_| "idrisi_ingest".to_owned());
+        let pg_password = env::var("PGPASSWORD")?;
         let max_inspection_report_bytes = env::var("IDRISI_WORKER_MAX_INSPECTION_REPORT_BYTES")
             .unwrap_or_else(|_| (2 * 1024 * 1024).to_string())
             .parse::<usize>()?;
@@ -92,8 +116,11 @@ impl Config {
             || heartbeat_interval.is_zero()
             || request_timeout.is_zero()
             || inspection_timeout.is_zero()
+            || import_timeout.is_zero()
             || max_inspection_report_bytes == 0
             || osmium_executable.as_os_str().is_empty()
+            || osm2pgsql_executable.as_os_str().is_empty()
+            || pg_port == 0
         {
             return Err("worker byte and duration settings must be positive".into());
         }
@@ -113,6 +140,13 @@ impl Config {
             max_inspection_report_bytes,
             osmium_executable,
             inspection_timeout,
+            osm2pgsql_executable,
+            import_timeout,
+            pg_host,
+            pg_port,
+            pg_database,
+            pg_username,
+            pg_password,
         })
     }
 }
@@ -139,7 +173,7 @@ async fn main() -> Result<(), WorkerError> {
         .acquire_timeout(Duration::from_secs(10))
         .connect(&config.database_url)
         .await?;
-    let repository = JobRepository::new(pool);
+    let repository = JobRepository::new(pool.clone());
 
     info!(
         worker_id = %config.worker_id,
@@ -171,7 +205,7 @@ async fn main() -> Result<(), WorkerError> {
                 match result {
                     Ok(Some(job)) => {
                         info!(job_id = %job.id, job_type = %job.job_type, attempt = job.attempt_count, "claimed ingestion job");
-                        process_job(&repository, job, &config, shutdown_rx.clone()).await;
+                        process_job(&repository, &pool, job, &config, shutdown_rx.clone()).await;
                     }
                     Ok(None) => tokio::time::sleep(config.poll_interval).await,
                     Err(error) => {
@@ -189,6 +223,7 @@ async fn main() -> Result<(), WorkerError> {
 
 async fn process_job(
     repository: &JobRepository,
+    pool: &PgPool,
     job: ClaimedJob,
     config: &Config,
     mut shutdown: watch::Receiver<bool>,
@@ -204,7 +239,11 @@ async fn process_job(
         return;
     }
     let work = async {
-        if job.job_type != "osm.pbf.stage" || job.importer_name != "geofabrik-pbf-download" {
+        let is_stage = job.job_type == "osm.pbf.stage"
+            && job.importer_name == "geofabrik-pbf-download";
+        let is_import = job.job_type == "osm.pbf.import"
+            && job.importer_name == "osm2pgsql-flex";
+        if !is_stage && !is_import {
             return Err("job type or importer is not registered by this worker".to_owned());
         }
         if !job.source_uri.to_ascii_lowercase().ends_with(".osm.pbf") {
@@ -220,7 +259,6 @@ async fn process_job(
             .await
             .map_err(|_| "could not create job staging directory".to_owned())?;
         let destination = attempt_dir.join("source.osm.pbf");
-
         let policy = DownloadPolicy {
             allowed_hosts: config.allowed_hosts.clone(),
             max_bytes: config.max_source_bytes,
@@ -235,6 +273,8 @@ async fn process_job(
             .await
             .map_err(|_| "job stage update failed".to_owned())?;
 
+        repository.set_stage(job_id, lease_token, JobStage::Checksum, 80)
+            .await.map_err(|_| "job stage update failed".to_owned())?;
         if let Some(expected) = job.source_checksum.as_deref() {
             let expected = expected.strip_prefix("sha256:").unwrap_or(expected);
             if !expected.eq_ignore_ascii_case(&receipt.sha256) {
@@ -243,10 +283,8 @@ async fn process_job(
             }
         }
 
-        repository
-            .set_stage(job_id, lease_token, JobStage::Inspecting, 90)
-            .await
-            .map_err(|error| error.to_string())?;
+        repository.set_stage(job_id, lease_token, JobStage::Inspecting, 85)
+            .await.map_err(|_| "job stage update failed".to_owned())?;
         let inspection = inspect(
             &destination,
             &InspectionPolicy {
@@ -254,11 +292,9 @@ async fn process_job(
                 deadline: config.inspection_timeout,
                 max_json_bytes: 4 * 1024 * 1024,
             },
-        )
-        .await
-        .map_err(|error| error.to_string())?;
+        ).await.map_err(|_| "PBF structural inspection failed".to_owned())?;
 
-        Ok(json!({
+        let mut result = json!({
             "artifact": "source.osm.pbf",
             "artifact_path": destination,
             "bytes": receipt.bytes,
@@ -280,10 +316,52 @@ async fn process_job(
                 "last_timestamp": inspection.last_timestamp,
                 "replication_timestamp": inspection.replication_timestamp,
                 "replication_sequence": inspection.replication_sequence
-            },
-            "state": "staged_and_inspected",
-            "next_step": "osm.pbf.import"
-        }))
+            }
+        });
+
+        if is_stage {
+            result["state"] = json!("staged_and_inspected");
+            result["next_step"] = json!("osm.pbf.import");
+            return Ok(result);
+        }
+
+        if job.staging_schema.as_deref() != Some("tiles_import") {
+            return Err("import job must target the fixed tiles_import schema".to_owned());
+        }
+        let bounds = dataset_bounds(pool, job.dataset_id).await
+            .map_err(|_| "dataset must have registered coverage before import".to_owned())?;
+        let table_prefix = format!("j{}", lease_token.simple());
+        let rendered_style = render_style("tiles_import", &table_prefix)
+            .map_err(|_| "could not render the reviewed OSM style".to_owned())?;
+        let style_path = attempt_dir.join("import.lua");
+        tokio::fs::write(&style_path, rendered_style).await
+            .map_err(|_| "could not write the isolated OSM style".to_owned())?;
+
+        repository.set_stage(job_id, lease_token, JobStage::Importing, 90)
+            .await.map_err(|_| "job stage update failed".to_owned())?;
+        let importer = Osm2pgsqlConfig {
+            executable: config.osm2pgsql_executable.clone(),
+            pbf_path: destination,
+            style_path,
+            database: config.pg_database.clone(),
+            host: config.pg_host.clone(),
+            port: config.pg_port,
+            username: config.pg_username.clone(),
+            schema: "tiles_import".to_owned(),
+            table_prefix: table_prefix.clone(),
+            bbox: bounds.as_bbox(),
+        };
+        process::run(&importer, &config.pg_password, config.import_timeout).await
+            .map_err(|_| "osm2pgsql import failed".to_owned())?;
+
+        repository.set_stage(job_id, lease_token, JobStage::Validating, 97)
+            .await.map_err(|_| "job stage update failed".to_owned())?;
+        let validation = validate_import(pool, "tiles_import", &table_prefix, &bounds)
+            .await.map_err(|error| format!("OSM staging validation failed: {error}"))?;
+        result["import"] = validation;
+        result["state"] = json!("imported_validated_unpublished");
+        result["next_step"] = json!("osm.dataset.publish");
+        Ok(result)
     };
 
     tokio::pin!(work);
