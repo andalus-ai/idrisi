@@ -16,7 +16,7 @@ Idrisi is not initially intended to replace the mature GIS ecosystem. It coordin
 
 ## 2. Design goals
 
-- Self-hostable with Docker Compose on a single machine or server.
+- Self-hostable with Docker Compose on a developer workstation or server.
 - Rust-first for Idrisi-owned domain services and contracts.
 - Engine/provider agnostic.
 - Versioned datasets and reproducible ingestion.
@@ -30,25 +30,22 @@ Idrisi is not initially intended to replace the mature GIS ecosystem. It coordin
 flowchart TB
   Clients[Web / Mobile / Jezaku / SDKs] --> Iket[Iket API Gateway]
   Iket --> API[Idrisi Domain API - Rust]
+  Iket --> Martin[Martin Vector Tile Server]
   API --> Catalog[Dataset & Layer Catalog]
   API --> Spatial[Spatial API]
   API --> Geo[Geocoding API]
   API --> Route[Routing API]
-  API --> Tiles[Tile API / Proxy]
-  API --> Offline[Offline Package API]
-
   Catalog --> PG[(PostgreSQL + PostGIS)]
   Spatial --> PG
   Geo --> Geocoder[Geocoder Provider]
   Route --> Router[Valhalla Provider]
-  Tiles --> Martin[Martin / MVT]
-  Tiles --> PM[PMTiles / Object Storage]
-  Offline --> PM
+  Martin --> PG
+  API --> Offline[Offline Package API]
+  Offline --> PM[PMTiles / Object Storage]
   Offline --> Graphs[Versioned Routing Graphs]
 
   Ingest[Ingestion Orchestrator] --> Sources[OSM / Elevation / Imagery / Hydro / Aviation]
   Ingest --> PG
-  Ingest --> Raster[Raster & Terrain Pipeline]
   Ingest --> Martin
   Ingest --> Router
   Ingest --> PM
@@ -57,7 +54,7 @@ flowchart TB
   Ops -.-> Ingest
 ```
 
-The diagram is conceptual. Individual services may be co-located in the initial Docker Compose deployment.
+Iket routes ordinary control-plane and domain requests to the Rust API. High-volume vector-tile requests are routed directly to Martin over the private network; this avoids buffering and proxying binary tiles through the catalog API. Both upstreams remain inaccessible to public clients except through the intended Iket routes.
 
 ## 4. Service responsibilities
 
@@ -77,7 +74,7 @@ PostgreSQL + PostGIS stores dynamic/editable features, operational metadata, geo
 
 ### Vector tiles
 
-Martin is the initial MVT server candidate for PostGIS-backed dynamic layers. PMTiles provides immutable, range-readable regional archives for static datasets and offline distribution. The gateway may authorize and proxy tile requests, while static package delivery can use a compatible object store or reverse proxy.
+Martin is the initial MVT server. It discovers only explicitly allowed tables in the dedicated `tiles` schema, using a separate read-only PostgreSQL role. Iket routes the public tile prefix directly to Martin while keeping Martin's listener and operator UI private. PMTiles provides immutable, range-readable regional archives for static datasets and offline distribution. Stable dataset/layer-to-tile-source mapping is still to be implemented.
 
 ### Raster, satellite, and terrain
 
@@ -126,7 +123,7 @@ Layer domains are extensible. The initial platform should implement common vecto
 
 - Default interchange CRS: WGS 84 / EPSG:4326.
 - GeoJSON coordinate order: longitude, latitude.
-- Tile addressing: document XYZ versus TMS behavior at each adapter boundary.
+- Tile addressing: WebMercatorQuad / XYZ for the initial vector tile endpoint; document any alternate TMS source explicitly.
 - Store source CRS and transformations; never relabel coordinates without transforming them.
 - Record horizontal accuracy, vertical datum, units, and temporal validity when relevant.
 - Handle Indonesia's islands, coastlines, antimeridian-adjacent data, and multiple UTM zones.
@@ -134,7 +131,7 @@ Layer domains are extensible. The initial platform should implement common vecto
 
 ## 8. Initial deployment topology
 
-Docker Compose starts Iket, the private Idrisi domain API, PostgreSQL/PostGIS, Martin, Valhalla, geocoder (when enabled), object storage (optional), and observability components. Heavy ingestion pipelines can run as one-shot jobs or dedicated workers rather than always-on services.
+Docker Compose starts the private Rust domain API, PostgreSQL/PostGIS, Martin, and later Valhalla/geocoder providers. Iket is deployed independently and attached to the private `idrisi-internal` network. Heavy ingestion pipelines can run as one-shot jobs or dedicated workers rather than always-on services.
 
 Persistent data volumes must be separated by purpose: database, source/staging, generated tiles, routing graphs, raster assets, and backups. A production single-server deployment should use external backup storage and a tested restore procedure.
 
