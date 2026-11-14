@@ -31,7 +31,7 @@ export class IdrisiError extends Error {
 
 export class IdrisiClient {
   readonly baseUrl: string;
-  private readonly token?: string;
+  private token?: string;
   private readonly tokenProvider?: IdrisiClientOptions["tokenProvider"];
   private readonly fetcher: FetchLike;
   private readonly headers: Headers;
@@ -63,6 +63,14 @@ export class IdrisiClient {
     if (!source.trim()) throw new TypeError("sourceId is required");
     return `${this.baseUrl}/tiles/${encodeURIComponent(source)}/{z}/{x}/{y}`;
   }
+  setToken(token: string | undefined): void { this.token = token; }
+
+  getMapLibreRequestHeaders(): Headers {
+    const headers = new Headers(this.headers);
+    if (this.token) headers.set("Authorization", `Bearer ${this.token}`);
+    return headers;
+  }
+
   async getRequestHeaders(): Promise<Headers> {
     const headers = new Headers(this.headers);
     const current = await this.tokenProvider?.();
@@ -94,5 +102,5 @@ export function createMapLibreVectorSource(client: IdrisiClient, sourceId: strin
 
 /** Attach current auth headers to MapLibre resource requests. */
 export function createMapLibreTransformRequest(client: IdrisiClient) {
-  return async (url: string) => ({ url, headers: Object.fromEntries((await client.getRequestHeaders()).entries()) });
+  return (url: string) => ({ url, headers: Object.fromEntries(client.getMapLibreRequestHeaders().entries()) });
 }
