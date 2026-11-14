@@ -2,55 +2,35 @@
 
 ## Purpose
 
-Migration `0004_ingestion_jobs.sql` adds a durable PostgreSQL queue for long-running ingestion work. The queue is private control-plane state: it is not exposed through the public API yet. The first worker integration reuses the dedicated `idrisi_ingest` database principal.
+Migration `0003_ingestion_jobs.sql` defines the durable catalog queue. Migration `0005_ingestion_worker_runtime.sql` adds lease fencing, priority and delayed retry scheduling. The queue is private control-plane state; jobs are currently enqueued through trusted operator database sessions, not a public API.
 
-## Job lifecycle
+## Lifecycle
 
 ```text
 queued -> running -> succeeded
-                  -> queued (retry delay, attempts remain)
+                  -> queued (retry delay; attempts remain)
                   -> failed (attempts exhausted)
-queued -> cancelled (operator action; worker cancellation is not yet wired)
-running -> running (expired lease reclaimed by another worker)
+running -> running (expired lease reclaimed with a new fencing token)
 ```
 
-Each claim increments `attempts` and assigns a worker ID plus lease expiry. Workers must heartbeat during long operations. Completion, heartbeat, and failure updates are fenced by both job ID and worker ID and require an unexpired lease. A worker that loses its lease must stop mutating outputs; it must not publish.
+Each claim increments `attempt_count`, assigns a worker identity and a fresh UUID lease token, and sets the lease expiry. Heartbeat, stage, retry and completion updates require the current unexpired token. A worker that loses its lease must stop work and must not publish output.
 
-The claim query uses `FOR UPDATE SKIP LOCKED`, so multiple workers can poll concurrently without claiming the same queued row. Expired jobs are eligible for reclaim while attempts remain. Expired jobs whose final attempt was already consumed are moved to terminal `failed` state during the next claim poll.
+Claims use `FOR UPDATE SKIP LOCKED`; workers pass an explicit allowlist of job types so an unsupported worker never claims unrelated work.
 
-## Enqueue a pilot job (operator-only)
+## Supported job types
 
-Until an authenticated administrative API exists, enqueue through a trusted database session only:
+The first worker binary supports only `osm.pbf.stage`. It downloads an allowlisted HTTPS PBF source, applies a byte limit, computes SHA-256 and stores the artifact under the persistent worker volume. A successful staging job does not mean that the data has been imported or published to Martin.
 
-```sql
-INSERT INTO ingestion_jobs (job_type, payload, requested_by, priority, max_attempts)
-VALUES (
-  'osm.pbf.import',
-  jsonb_build_object(
-    'dataset_slug', 'osm-bandung-pilot',
-    'source_url', 'https://download.geofabrik.de/asia/indonesia/java-261112.osm.pbf',
-    'bbox', '107.35,-7.15,107.85,-6.75'
-  ),
-  'operator',
-  10,
-  3
-)
-RETURNING id;
-```
+See [worker operations](worker.md) for deployment, configuration and the operator enqueue example.
 
-The queue stores declarative job metadata, not credentials or arbitrary shell commands. A worker must allowlist supported `job_type` values, validate payload schemas, enforce source-host and byte limits, and resolve credentials from its environment/secret store. Never accept executable paths, SQL, shell fragments, or database passwords from job payloads.
+## Security rules
 
-## Rust queue primitives
+- Job rows contain declarative metadata only; never store credentials, SQL, shell fragments or executable paths in a job.
+- Worker source hosts are an exact operator-configured allowlist.
+- Redirects are disabled to prevent a trusted source URL from redirecting to an untrusted or internal endpoint.
+- Each attempt writes to a unique path; a retry never overwrites an earlier artifact.
+- Lease tokens fence stale workers from updating job state after another worker reclaims the lease.
 
-The `idrisi-ingestion::queue` module provides:
+## Next work
 
-- `claim_next(pool, worker_id, lease)`
-- `heartbeat(pool, job_id, worker_id, lease)`
-- `complete(pool, job_id, worker_id)`
-- `fail_or_retry(pool, job_id, worker_id, error, retry_delay)`
-
-Boolean mutation results indicate whether the caller still owned a valid lease. A `false` result means the lease expired or another worker reclaimed the job; the caller must treat itself as fenced out.
-
-## Current boundary and next work
-
-This increment provides the durable schema and concurrency-safe queue primitives. It does **not** yet include an always-on worker binary, API submission/status endpoints, cancellation signaling, per-stage progress events, or a transactional publication/swap implementation. The existing Bandung one-shot script remains the only end-to-end import runner; do not enqueue jobs until a worker handler for `osm.pbf.import` is deployed.
+The next increment adds a separate OSM import handler that writes to a per-job staging schema, followed by geometry and coverage validation. Dataset publication and Martin-visible table swaps remain a separate, explicitly transactional operation.
