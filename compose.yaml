@@ -10,6 +10,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       MARTIN_DB_PASSWORD: ${MARTIN_DB_PASSWORD:?Set MARTIN_DB_PASSWORD in .env}
       IDRISI_INGEST_DB_PASSWORD: ${IDRISI_INGEST_DB_PASSWORD:?Set IDRISI_INGEST_DB_PASSWORD in .env}
+      IDRISI_PUBLISH_DB_PASSWORD: ${IDRISI_PUBLISH_DB_PASSWORD:?Set IDRISI_PUBLISH_DB_PASSWORD in .env}
     ports:
       - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     networks:
@@ -75,6 +76,25 @@ services:
         condition: service_healthy
     volumes:
       - idrisi-ingestion-data:/var/lib/idrisi/ingestion
+    networks:
+      - idrisi-internal
+
+  idrisi-publisher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["/usr/local/bin/idrisi-publisher"]
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      DATABASE_URL: postgres://idrisi_publish:${IDRISI_PUBLISH_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-idrisi}
+      IDRISI_PUBLISHER_POLL_SECONDS: ${IDRISI_PUBLISHER_POLL_SECONDS:-5}
+      IDRISI_PUBLISHER_LEASE_SECONDS: ${IDRISI_PUBLISHER_LEASE_SECONDS:-300}
+      IDRISI_PUBLISHER_HEARTBEAT_SECONDS: ${IDRISI_PUBLISHER_HEARTBEAT_SECONDS:-30}
+      RUST_LOG: ${RUST_LOG:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - idrisi-internal
 
