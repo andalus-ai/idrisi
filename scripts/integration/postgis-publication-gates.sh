@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-compose=(docker compose -f compose.yaml)
+project="idrisi-integration-${GITHUB_RUN_ID:-local}-$$"
+compose=(docker compose -p "$project" -f compose.yaml)
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$project_root"
+
+# Isolate this test stack and its host ports; never tear down a developer's
+# regular Idrisi Compose project or persistent volumes.
+export POSTGRES_PORT=15439
+export IDRISI_API_PORT=18080
 
 cleanup() {
   "${compose[@]}" down --volumes --remove-orphans
@@ -19,7 +25,7 @@ fi
 echo "Waiting for API migrations and readiness..."
 ready=0
 for _ in $(seq 1 60); do
-  if curl --fail --silent http://127.0.0.1:8080/health/ready >/dev/null; then
+  if curl --fail --silent http://127.0.0.1:18080/health/ready >/dev/null; then
     ready=1
     break
   fi
@@ -68,8 +74,8 @@ BEGIN
         RAISE EXCEPTION '"'"'publisher role must not create objects in tiles directly'"'"';
     END IF;
 
-    IF NOT has_column_privilege('idrisi_publish', '"'"'ingestion_jobs'"'"', '"'"'status'"'"', '"'"'UPDATE'"'"')
-       OR has_table_privilege('"'"'idrisi_publish', '"'"'ingestion_jobs'"'"', '"'"'DELETE'"'"') THEN
+    IF NOT has_column_privilege('"'"'idrisi_publish'"'"', '"'"'ingestion_jobs'"'"', '"'"'status'"'"', '"'"'UPDATE'"'"')
+       OR has_table_privilege('"'"'idrisi_publish'"'"', '"'"'ingestion_jobs'"'"', '"'"'DELETE'"'"') THEN
         RAISE EXCEPTION '"'"'publisher queue privileges are not least-privilege'"'"';
     END IF;
 
