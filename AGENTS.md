@@ -9,7 +9,8 @@ Build a self-hosted, API-first geospatial platform, Indonesia-first, supporting 
 ## Non-negotiable architecture rules
 
 1. **Rust-first platform, not rewrite-everything.** Use Rust for Idrisi-owned services, domain models, orchestration, adapters, and gateway code. Integrate mature systems such as PostgreSQL/PostGIS, Martin, GDAL, PROJ, Valhalla, Nominatim, and other engines as external processes/services.
-2. **Stable provider contracts.** Domain services must depend on Idrisi interfaces, not vendor-specific SDKs or response formats. Keep provider-specific behavior inside adapters.
+2. **Iket owns the gateway layer.** Do not create a parallel Idrisi public gateway or duplicate Iket routing, TLS, authentication, rate-limiting, circuit-breaking, or administration features. Idrisi services own domain-level authorization and geospatial behavior.
+3. **Stable provider contracts.** Domain services must depend on Idrisi interfaces, not vendor-specific SDKs or response formats. Keep provider-specific behavior inside adapters.
 3. **Separate data classes.** Distinguish source datasets, normalized/derived datasets, operational indexes/graphs, rendered tiles, and user-authored data. Track provenance and versions.
 4. **Do not put large data in Git.** No PBF files, raster imagery, tile archives, routing graphs, database dumps, or generated datasets in the repository. Use ignored local data directories, volumes, or object storage.
 5. **No silent license assumptions.** Before ingesting, transforming, serving, or redistributing a dataset, record its license, attribution, restrictions, and redistribution conditions.
@@ -21,7 +22,8 @@ Build a self-hosted, API-first geospatial platform, Indonesia-first, supporting 
 
 ## Repository conventions
 
-- Keep crates under `crates/` and deployable services under `services/`.
+- Keep crates under `crates/` and deployable Idrisi domain services under `services/`.
+- Keep Iket deployment/configuration examples under `infrastructure/iket/`; do not vendor Iket source into Idrisi.
 - Put external engine adapters under `integrations/`.
 - Put OpenAPI and protobuf definitions under `schemas/`.
 - Put operational manifests and database bootstrap assets under `infrastructure/`.
@@ -71,7 +73,9 @@ Ingestion must be idempotent where possible, resumable, observable, and safe to 
 
 ## API and compatibility
 
-- Prefix public endpoints with `/v1` until a deliberate versioning policy is adopted.
+- Prefix Idrisi domain endpoints with `/v1`; Iket exposes a configured public prefix and routes to the private API.
+- Iket owns edge routing, TLS, configured gateway authentication/API-key policies, and traffic controls.
+- Idrisi must still enforce tenant/resource authorization. Never trust identity headers supplied directly by clients; identity propagation must use a documented trusted mechanism.
 - Define request/response schemas and error formats before implementation.
 - Use pagination, bounded result sizes, timeouts, and request-size limits.
 - Do not expose backend engine URLs, internal IDs, or raw provider errors to untrusted clients.
