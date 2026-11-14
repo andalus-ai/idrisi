@@ -12,7 +12,7 @@ COPY crates/idrisi-ingestion/src crates/idrisi-ingestion/src
 RUN cargo build --release -p idrisi-api -p idrisi-ingestion --bins
 
 FROM debian:bookworm-slim AS runtime
-RUN useradd --system --uid 10001 --create-home idrisi
+RUN useradd --system --uid 10001 --create-home idrisi && mkdir -p /var/lib/idrisi/ingestion && chown -R idrisi:idrisi /var/lib/idrisi
 COPY --from=builder /app/target/release/idrisi-api /usr/local/bin/idrisi-api
 COPY --from=builder /app/target/release/idrisi-worker /usr/local/bin/idrisi-worker
 
