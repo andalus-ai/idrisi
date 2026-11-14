@@ -1,0 +1,13 @@
+# Martin serves only explicitly published tile sources from the tiles schema.
+# Keep the server private behind Iket; do not publish port 3000 on the host.
+postgres:
+  connection_string: ${MARTIN_DATABASE_URL}
+  default_srid: 4326
+  pool_size: 10
+  auto_publish:
+    tables:
+      from_schemas:
+        - tiles
+
+# Disable the operator web UI; tile and TileJSON endpoints remain available.
+web_ui: disable
