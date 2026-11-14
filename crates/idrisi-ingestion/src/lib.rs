@@ -103,9 +103,7 @@ fn validate_identifier(value: &str, field: &'static str) -> Result<(), ConfigErr
     let valid_first = chars
         .next()
         .is_some_and(|character| character == '_' || character.is_ascii_alphabetic());
-    let valid_rest = chars.all(|character| {
-        character == '_' || character.is_ascii_alphanumeric()
-    });
+    let valid_rest = chars.all(|character| character == '_' || character.is_ascii_alphanumeric());
 
     if !valid_first || !valid_rest || value.len() > 63 {
         return Err(ConfigError::InvalidIdentifier(field));
@@ -173,13 +171,20 @@ mod tests {
     }
 }
 
-
 /// Bounded, HTTPS-only source acquisition. Redirects are disabled so a trusted
 /// source host cannot redirect the worker to an untrusted/internal endpoint.
 pub mod acquisition {
     use sha2::{Digest, Sha256};
-    use std::{collections::HashSet, path::{Path, PathBuf}, time::Duration};
-    use tokio::{fs::{self, OpenOptions}, io::AsyncWriteExt, time::timeout};
+    use std::{
+        collections::HashSet,
+        path::{Path, PathBuf},
+        time::Duration,
+    };
+    use tokio::{
+        fs::{self, OpenOptions},
+        io::AsyncWriteExt,
+        time::timeout,
+    };
 
     #[derive(Debug, Clone)]
     pub struct DownloadPolicy {
@@ -211,7 +216,10 @@ pub mod acquisition {
     impl std::fmt::Display for DownloadError {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
-                Self::InvalidPolicy => write!(f, "download policy must allow hosts and a positive byte limit"),
+                Self::InvalidPolicy => write!(
+                    f,
+                    "download policy must allow hosts and a positive byte limit"
+                ),
                 Self::InvalidUrl => write!(f, "source URL must be a valid HTTPS URL"),
                 Self::HostNotAllowed => write!(f, "source host is not in the configured allowlist"),
                 Self::Http(error) => write!(f, "HTTP request failed: {error}"),
@@ -238,7 +246,11 @@ pub mod acquisition {
             return Err(DownloadError::InvalidUrl);
         }
         let host = url.host_str().ok_or(DownloadError::InvalidUrl)?;
-        if !policy.allowed_hosts.iter().any(|allowed| allowed.eq_ignore_ascii_case(host)) {
+        if !policy
+            .allowed_hosts
+            .iter()
+            .any(|allowed| allowed.eq_ignore_ascii_case(host))
+        {
             return Err(DownloadError::HostNotAllowed);
         }
 
@@ -253,7 +265,10 @@ pub mod acquisition {
             if !response.status().is_success() {
                 return Err(DownloadError::HttpStatus(response.status().as_u16()));
             }
-            if response.content_length().is_some_and(|length| length > policy.max_bytes) {
+            if response
+                .content_length()
+                .is_some_and(|length| length > policy.max_bytes)
+            {
                 return Err(DownloadError::TooLarge);
             }
 
@@ -267,7 +282,9 @@ pub mod acquisition {
             let mut total = 0_u64;
 
             while let Some(chunk) = response.chunk().await.map_err(DownloadError::Http)? {
-                total = total.checked_add(chunk.len() as u64).ok_or(DownloadError::TooLarge)?;
+                total = total
+                    .checked_add(chunk.len() as u64)
+                    .ok_or(DownloadError::TooLarge)?;
                 if total > policy.max_bytes {
                     drop(file);
                     let _ = fs::remove_file(destination).await;
