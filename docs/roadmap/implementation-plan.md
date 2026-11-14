@@ -11,7 +11,7 @@
 
 ## Delivery strategy
 
-Build a vertical slice early: start the platform, register an Indonesia dataset, query PostGIS, serve a vector tile, render it in MapLibre, and expose it through the Idrisi gateway. Then add routing and geocoding, followed by raster/terrain, offline packaging, and specialist chart domains.
+Build a vertical slice early: start Iket and the private Idrisi API, register an Indonesia dataset, query PostGIS, serve a vector tile, render it in MapLibre, and expose it through Iket. Then add routing and geocoding, followed by raster/terrain, offline packaging, and specialist chart domains.
 
 ## Phase 0 — Repository and engineering foundation
 
