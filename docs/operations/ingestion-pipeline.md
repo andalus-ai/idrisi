@@ -103,3 +103,10 @@ Review the ODbL obligations for the specific database, derivative database, and 
 ## Not implemented by the catalog migration alone
 
 The migration supplies durable job metadata only. It does not yet provide a worker, download client, `osm2pgsql` image, job submission API, validation implementation, or atomic schema publication. Those are the next implementation slices and must be tested against a running PostGIS instance before calling the pipeline operational.
+
+
+## Lease-aware stage supervision
+
+The ingestion crate now provides `worker::run_with_heartbeat`. It wraps a long-running stage future, renews the job lease at a configurable interval, and drops the stage future immediately when the heartbeat fails or the fencing token is rejected. The heartbeat interval must be positive and shorter than the lease duration. Child-process stages must retain `kill_on_drop` so cancellation also stops the external process.
+
+This is a concurrency primitive, not yet the worker poller or end-to-end pipeline. It prevents a common failure mode in which a download, PBF scan, or importer keeps running after another worker has reclaimed the job. The next worker slice should compose claim → acquire → checksum → inspect → import → validate, then add a transactionally fenced handoff to publication. Do not mark a job successful before publication commits.
