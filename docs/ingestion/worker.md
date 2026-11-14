@@ -69,3 +69,19 @@ Optional `source_checksum` should contain the expected SHA-256 hex digest (or `s
 - Each attempt uses a distinct artifact path so a retry never overwrites a previously downloaded file.
 - PBF inspection reads the complete file, has a configurable deadline, and caps the JSON report at 4 MiB. The runtime image installs `osmium-tool`.
 - Retention/garbage collection for failed and superseded attempt artifacts is a follow-up operational task.
+
+
+## Per-job staging namespace preparation
+
+The ingestion crate now exposes `staging::StagingNamespace`. It derives distinct,
+PostgreSQL-safe data and osm2pgsql middle-schema identifiers from the job UUID.
+Its flex-style renderer redirects the four reviewed `schema = 'tiles'` declarations
+in the committed Bandung Lua profile into the job's data schema. It fails closed
+if the template no longer contains exactly four declarations.
+
+This is a preparation primitive, not an active import stage yet: the worker does
+not create these schemas, invoke osm2pgsql, validate imported geometries, or publish
+the staged tables. Database grants and a fenced import handler must be added before
+enabling queue-driven imports. Do not manually execute a rendered style against a
+production database until the staging role's schema privileges and cleanup policy
+are deployed.
