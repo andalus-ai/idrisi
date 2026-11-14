@@ -163,7 +163,9 @@ async fn process_job(
             || source_metadata.get("state").and_then(Value::as_str)
                 != Some("imported_validated_unpublished")
         {
-            return Err("source import is not a validated unpublished job for this dataset".to_owned());
+            return Err(
+                "source import is not a validated unpublished job for this dataset".to_owned(),
+            );
         }
 
         let schema = staging_schema
@@ -188,9 +190,7 @@ async fn process_job(
             .await
             .map_err(|_| "publication job lease was lost".to_owned())?;
 
-        let result = sqlx::query_scalar::<_, Value>(
-            "SELECT idrisi_publish_osm_dataset($1, $2)",
-        )
+        let result = sqlx::query_scalar::<_, Value>("SELECT idrisi_publish_osm_dataset($1, $2)")
         .bind(job_id)
         .bind(lease_token)
         .fetch_one(pool)
@@ -253,9 +253,7 @@ async fn process_job(
 }
 
 fn retry_delay(attempt: i32) -> ChronoDuration {
-    let exponent = u32::try_from(attempt.saturating_sub(1))
-        .unwrap_or(0)
-        .min(5);
+    let exponent = u32::try_from(attempt.saturating_sub(1)).unwrap_or(0).min(5);
     ChronoDuration::seconds((30_i64 * 2_i64.pow(exponent)).min(1800))
 }
 
