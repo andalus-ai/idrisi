@@ -43,6 +43,17 @@ Use `osm2pgsql` in a pinned worker image. The orchestration layer owns job lifec
 
 For the initial pilot, prefer a documented, explicit output schema and table naming convention. The exact schema must be agreed with Martin's source configuration before the first real import. Avoid exposing raw staging schemas to tile serving.
 
+## Implemented acquisition and process primitives
+
+The `idrisi-ingestion` crate now includes:
+
+- HTTPS-only acquisition with an exact host allowlist, redirects disabled, request deadline, declared and streamed byte limits, create-new destination semantics, partial-file cleanup, and local SHA-256 calculation.
+- A supervised `osm2pgsql` child-process runner with a hard deadline, kill-on-timeout behavior, argument-vector invocation, password injection through `PGPASSWORD`, and no stdout/stderr capture by default.
+
+The downloader's SHA-256 is a local content fingerprint. It must still be compared with a trusted provider checksum when one is available. The caller must create and permission the job directory before download. The host allowlist must be operator-configured; never derive it from an untrusted API request.
+
+These primitives are not yet wired to `ingestion_jobs`. A durable worker loop, database lease/heartbeat handling, PBF structural inspection, importer recipe, validation, and publication remain outstanding. The process runner's timeout and failure behavior still needs execution testing in CI and in the worker container.
+
 ## OSM provenance and attribution
 
 At minimum capture:
