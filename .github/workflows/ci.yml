@@ -25,6 +25,11 @@ jobs:
         run: |
           bash -n scripts/ingest/osm-bandung.sh
           bash -n scripts/smoke/test-vector-tiles.sh
+      - name: TypeScript SDK
+        working-directory: sdks/typescript
+        run: |
+          npm install --no-audit --no-fund
+          npm test
       - name: Format
         run: cargo fmt --all -- --check
       - name: Clippy
