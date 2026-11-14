@@ -172,3 +172,204 @@ mod tests {
         );
     }
 }
+
+
+/// Bounded, HTTPS-only source acquisition. Redirects are disabled so a trusted
+/// source host cannot redirect the worker to an untrusted/internal endpoint.
+pub mod acquisition {
+    use sha2::{Digest, Sha256};
+    use std::{collections::HashSet, path::{Path, PathBuf}, time::Duration};
+    use tokio::{fs::{self, OpenOptions}, io::AsyncWriteExt, time::timeout};
+
+    #[derive(Debug, Clone)]
+    pub struct DownloadPolicy {
+        pub allowed_hosts: HashSet<String>,
+        pub max_bytes: u64,
+        pub request_timeout: Duration,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct DownloadReceipt {
+        pub path: PathBuf,
+        pub bytes: u64,
+        pub sha256: String,
+    }
+
+    #[derive(Debug)]
+    pub enum DownloadError {
+        InvalidPolicy,
+        InvalidUrl,
+        HostNotAllowed,
+        Http(reqwest::Error),
+        HttpStatus(u16),
+        TooLarge,
+        EmptyFile,
+        Io(std::io::Error),
+        TimedOut,
+    }
+
+    impl std::fmt::Display for DownloadError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::InvalidPolicy => write!(f, "download policy must allow hosts and a positive byte limit"),
+                Self::InvalidUrl => write!(f, "source URL must be a valid HTTPS URL"),
+                Self::HostNotAllowed => write!(f, "source host is not in the configured allowlist"),
+                Self::Http(error) => write!(f, "HTTP request failed: {error}"),
+                Self::HttpStatus(status) => write!(f, "source returned HTTP status {status}"),
+                Self::TooLarge => write!(f, "source exceeded the configured byte limit"),
+                Self::EmptyFile => write!(f, "source file was empty"),
+                Self::Io(error) => write!(f, "source file operation failed: {error}"),
+                Self::TimedOut => write!(f, "source download timed out"),
+            }
+        }
+    }
+    impl std::error::Error for DownloadError {}
+
+    pub async fn download(
+        source_url: &str,
+        destination: &Path,
+        policy: &DownloadPolicy,
+    ) -> Result<DownloadReceipt, DownloadError> {
+        if policy.allowed_hosts.is_empty() || policy.max_bytes == 0 {
+            return Err(DownloadError::InvalidPolicy);
+        }
+        let url = reqwest::Url::parse(source_url).map_err(|_| DownloadError::InvalidUrl)?;
+        if url.scheme() != "https" || url.username() != "" || url.password().is_some() {
+            return Err(DownloadError::InvalidUrl);
+        }
+        let host = url.host_str().ok_or(DownloadError::InvalidUrl)?;
+        if !policy.allowed_hosts.iter().any(|allowed| allowed.eq_ignore_ascii_case(host)) {
+            return Err(DownloadError::HostNotAllowed);
+        }
+
+        let client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .timeout(policy.request_timeout)
+            .build()
+            .map_err(DownloadError::Http)?;
+
+        let operation = async {
+            let mut response = client.get(url).send().await.map_err(DownloadError::Http)?;
+            if !response.status().is_success() {
+                return Err(DownloadError::HttpStatus(response.status().as_u16()));
+            }
+            if response.content_length().is_some_and(|length| length > policy.max_bytes) {
+                return Err(DownloadError::TooLarge);
+            }
+
+            let mut file = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(destination)
+                .await
+                .map_err(DownloadError::Io)?;
+            let mut hasher = Sha256::new();
+            let mut total = 0_u64;
+
+            while let Some(chunk) = response.chunk().await.map_err(DownloadError::Http)? {
+                total = total.checked_add(chunk.len() as u64).ok_or(DownloadError::TooLarge)?;
+                if total > policy.max_bytes {
+                    drop(file);
+                    let _ = fs::remove_file(destination).await;
+                    return Err(DownloadError::TooLarge);
+                }
+                hasher.update(&chunk);
+                file.write_all(&chunk).await.map_err(DownloadError::Io)?;
+            }
+
+            if total == 0 {
+                drop(file);
+                let _ = fs::remove_file(destination).await;
+                return Err(DownloadError::EmptyFile);
+            }
+            file.sync_all().await.map_err(DownloadError::Io)?;
+            Ok(DownloadReceipt {
+                path: destination.to_path_buf(),
+                bytes: total,
+                sha256: format!("{:x}", hasher.finalize()),
+            })
+        };
+
+        match timeout(policy.request_timeout, operation).await {
+            Ok(Ok(receipt)) => Ok(receipt),
+            Ok(Err(error)) => {
+                // Remove partial files on every failure; never reuse an incomplete PBF.
+                let _ = fs::remove_file(destination).await;
+                Err(error)
+            }
+            Err(_) => {
+                let _ = fs::remove_file(destination).await;
+                Err(DownloadError::TimedOut)
+            }
+        }
+    }
+}
+
+/// Minimal process supervisor for the pinned osm2pgsql adapter. Output is
+/// discarded by default to prevent unbounded pipe buffering or secret leakage.
+/// Operators should capture redacted logs at the container/runtime boundary.
+pub mod process {
+    use crate::Osm2pgsqlConfig;
+    use std::{path::PathBuf, process::Stdio, time::Duration};
+    use tokio::{process::Command, time::timeout};
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct ImportResult {
+        pub exit_code: Option<i32>,
+    }
+
+    #[derive(Debug)]
+    pub enum ImportError {
+        InvalidConfig(crate::ConfigError),
+        Spawn(std::io::Error),
+        TimedOut,
+        Failed(Option<i32>),
+    }
+
+    impl std::fmt::Display for ImportError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Self::InvalidConfig(error) => write!(f, "invalid importer configuration: {error}"),
+                Self::Spawn(error) => write!(f, "could not start importer: {error}"),
+                Self::TimedOut => write!(f, "osm2pgsql exceeded its execution deadline"),
+                Self::Failed(code) => write!(f, "osm2pgsql exited unsuccessfully: {code:?}"),
+            }
+        }
+    }
+    impl std::error::Error for ImportError {}
+
+    pub async fn run(
+        config: &Osm2pgsqlConfig,
+        database_password: &str,
+        deadline: Duration,
+    ) -> Result<ImportResult, ImportError> {
+        let invocation = config.invocation().map_err(ImportError::InvalidConfig)?;
+        let mut child = Command::new(invocation.program)
+            .args(invocation.args)
+            .env("PGPASSWORD", database_password)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .kill_on_drop(true)
+            .spawn()
+            .map_err(ImportError::Spawn)?;
+
+        match timeout(deadline, child.wait()).await {
+            Ok(Ok(status)) if status.success() => Ok(ImportResult {
+                exit_code: status.code(),
+            }),
+            Ok(Ok(status)) => Err(ImportError::Failed(status.code())),
+            Ok(Err(error)) => Err(ImportError::Spawn(error)),
+            Err(_) => {
+                let _ = child.kill().await;
+                let _ = child.wait().await;
+                Err(ImportError::TimedOut)
+            }
+        }
+    }
+
+    /// Stable helper for callers that derive per-job storage paths.
+    pub fn job_input_path(root: &std::path::Path, job_id: &str) -> PathBuf {
+        root.join(job_id).join("source.osm.pbf")
+    }
+}
