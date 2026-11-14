@@ -6,6 +6,7 @@
 
 pub mod repository;
 pub mod inspector;
+pub mod worker;
 
 use std::{ffi::OsString, path::PathBuf};
 
