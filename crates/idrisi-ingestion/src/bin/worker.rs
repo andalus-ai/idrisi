@@ -5,16 +5,10 @@ use idrisi_ingestion::{
 };
 use serde_json::{json, Value};
 use sqlx::postgres::PgPoolOptions;
-use std::{
-    collections::HashSet,
-    env,
-    error::Error,
-    path::PathBuf,
-    time::Duration,
-};
+use std::{collections::HashSet, env, error::Error, path::PathBuf, time::Duration};
+use tokio::sync::watch;
 use tracing::{error, info, warn};
 use uuid::Uuid;
-use tokio::sync::watch;
 
 type WorkerError = Box<dyn Error + Send + Sync>;
 const SUPPORTED_JOB_TYPES: &[&str] = &["osm.pbf.stage"];
@@ -34,8 +28,8 @@ struct Config {
 impl Config {
     fn from_env() -> Result<Self, WorkerError> {
         let database_url = env::var("DATABASE_URL")?;
-        let worker_id = env::var("IDRISI_WORKER_ID")
-            .unwrap_or_else(|_| format!("worker-{}", Uuid::new_v4()));
+        let worker_id =
+            env::var("IDRISI_WORKER_ID").unwrap_or_else(|_| format!("worker-{}", Uuid::new_v4()));
         let data_dir = PathBuf::from(
             env::var("IDRISI_WORKER_DATA_DIR")
                 .unwrap_or_else(|_| "/var/lib/idrisi/ingestion".to_owned()),
@@ -74,7 +68,11 @@ impl Config {
                 .unwrap_or_else(|_| "14400".to_owned())
                 .parse()?,
         );
-        if max_source_bytes == 0 || poll_interval.is_zero() || heartbeat_interval.is_zero() || request_timeout.is_zero() {
+        if max_source_bytes == 0
+            || poll_interval.is_zero()
+            || heartbeat_interval.is_zero()
+            || request_timeout.is_zero()
+        {
             return Err("worker byte and duration settings must be positive".into());
         }
 
@@ -102,7 +100,10 @@ async fn main() -> Result<(), WorkerError> {
         .init();
 
     let config = Config::from_env()?;
-    if config.lease_duration.is_zero() || config.lease_duration > Duration::from_secs(24 * 60 * 60) || config.lease_duration < config.heartbeat_interval * 2 {
+    if config.lease_duration.is_zero()
+        || config.lease_duration > Duration::from_secs(24 * 60 * 60)
+        || config.lease_duration < config.heartbeat_interval * 2
+    {
         return Err("worker lease must be at least twice the heartbeat interval".into());
     }
 
@@ -167,7 +168,8 @@ async fn process_job(
 ) {
     let job_id = job.id;
     let lease_token = job.lease_token;
-    let attempt_dir = config.data_dir
+    let attempt_dir = config
+        .data_dir
         .join(job_id.to_string())
         .join(format!("attempt-{}-{}", job.attempt_count, lease_token));
     if *shutdown.borrow() {
@@ -261,7 +263,13 @@ async fn process_job(
         Err(message) => {
             let delay = retry_delay(job.attempt_count);
             if let Err(error) = repository
-                .retry(job_id, lease_token, "source_staging_failed", &message, delay)
+                .retry(
+                    job_id,
+                    lease_token,
+                    "source_staging_failed",
+                    &message,
+                    delay,
+                )
                 .await
             {
                 warn!(job_id = %job_id, %error, "could not record job failure; lease may have expired");
@@ -292,7 +300,6 @@ async fn shutdown_signal() {
         let _ = tokio::signal::ctrl_c().await;
     }
 }
-
 
 #[cfg(test)]
 mod tests {
