@@ -37,6 +37,12 @@ The ingestion crate now includes a PostgreSQL `JobRepository` backed by SQLx. It
 
 Migration `0003_ingestion_job_leases.sql` adds the ownership fields and constraints. Existing running jobs are requeued during migration because they cannot safely inherit a lease owned by a process from the old schema. The repository is a control-plane primitive; it is not yet a continuously running worker or a complete ingestion pipeline. Publication must remain a separate, transactionally guarded operation and must check lease ownership immediately before committing.
 
+## OSM PBF structural inspection
+
+The ingestion crate includes an `inspector` adapter for the pinned `osmium-tool` executable. It runs `osmium fileinfo --extended --json` without a shell, applies a hard deadline, suppresses stderr, bounds accepted JSON output, and rejects non-PBF, empty, or incomplete reports. Extended mode reads the entire input, allowing malformed/truncated PBF data to fail before the database importer starts. The normalized result records file size, node/way/relation counts, available data bounds and timestamps, replication timestamp/sequence, and the bounded raw report for provenance.
+
+The executable version must be pinned in the worker image and exercised against real PBF fixtures in CI. The parser intentionally treats bounding-box and timestamp details as optional because OSM extracts may omit them; coverage policy enforcement belongs to the next validation stage. This adapter is not yet called by a durable worker.
+
 ## Initial Rust importer adapter
 
 The `idrisi-ingestion` crate now contains an `Osm2pgsqlConfig` and deterministic invocation builder. It creates an argument vector (never a shell string), validates PostgreSQL database/role/staging-schema identifiers, and deliberately excludes passwords from command-line arguments. The caller must inject credentials from a secret source when spawning the child process.
