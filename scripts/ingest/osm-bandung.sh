@@ -8,9 +8,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DATA_DIR="${IDRISI_DATA_DIR:-$ROOT_DIR/data/osm}"
-PBF_URL="${IDRISI_OSM_PBF_URL:-https://download.geofabrik.de/asia/indonesia/java-latest.osm.pbf}"
+PBF_URL="${IDRISI_OSM_PBF_URL:-https://download.geofabrik.de/asia/indonesia/java-261112.osm.pbf}"
 BBOX="${IDRISI_OSM_BBOX:-107.35,-7.15,107.85,-6.75}"
-PBF_PATH="$DATA_DIR/java-latest.osm.pbf"
+PBF_FILENAME="$(basename "$PBF_URL")"
+PBF_PATH="$DATA_DIR/$PBF_FILENAME"
 MD5_PATH="$PBF_PATH.md5"
 MANIFEST_PATH="$DATA_DIR/bandung-manifest.json"
 RETRIEVED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -83,6 +84,7 @@ psql "$IDRISI_INGEST_DATABASE_URL" \
   --set=version="$VERSION" \
   --set=checksum="$SHA256" \
   --set=source_uri="$PBF_URL" \
+  --set=source_version="$PBF_FILENAME" \
   --set=retrieved_at="$RETRIEVED_AT" \
   --set=feature_count="$FEATURE_COUNT" \
   --set=bbox="$BBOX" <<'SQL'
@@ -97,7 +99,7 @@ INSERT INTO dataset_versions (
     coverage, feature_count, storage_uri, published_at, metadata
 )
 SELECT
-    dataset.id, :'version', 'published', source.id, :'retrieved_at', :'checksum',
+    dataset.id, :'version', 'published', source.id, :'source_version', :'checksum',
     ST_Multi(ST_MakeEnvelope(
         split_part(:'bbox', ',', 1)::double precision,
         split_part(:'bbox', ',', 2)::double precision,
