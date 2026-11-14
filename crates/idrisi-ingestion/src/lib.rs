@@ -4,11 +4,11 @@
 //! Credentials are supplied through the child process environment by the worker,
 //! never through command-line arguments or persisted job metadata.
 
+pub mod inspector;
+pub mod osm_import;
 pub mod repository;
 pub mod staging;
-pub mod inspector;
 pub mod worker;
-pub mod osm_import;
 
 use std::{ffi::OsString, path::PathBuf};
 
@@ -206,7 +206,10 @@ mod tests {
     fn rejects_invalid_bbox() {
         let mut config = config();
         config.bbox = "107,-7,106,-6".into();
-        assert_eq!(config.invocation().unwrap_err(), ConfigError::InvalidIdentifier("bbox"));
+        assert_eq!(
+            config.invocation().unwrap_err(),
+            ConfigError::InvalidIdentifier("bbox")
+        );
     }
 
     #[test]
