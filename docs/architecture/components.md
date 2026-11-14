@@ -44,7 +44,7 @@ idrisi/
 │   ├── idrisi-auth/
 │   └── idrisi-observability/
 ├── services/
-│   ├── gateway/
+│   ├── api/
 │   ├── catalog/
 │   ├── ingestion/
 │   ├── tiles/
@@ -80,6 +80,6 @@ This is a target structure, not a requirement to create every crate or service i
 
 ## Deployment boundary
 
-The first supported deployment is self-hosted Docker Compose on one Linux host. The gateway should address dependencies by internal service DNS names and environment-based configuration. Do not hard-code hostnames, paths, ports, or credentials in source code.
+The first supported deployment is self-hosted Docker Compose on one Linux host. Iket routes to private Idrisi services using internal service DNS names and environment-based configuration. Do not hard-code hostnames, paths, ports, or credentials in source code.
 
 Kubernetes/Helm is a later packaging target after Compose has stable health checks, persistent-volume semantics, backup/restore, and upgrade behavior.
