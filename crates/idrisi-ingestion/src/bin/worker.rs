@@ -206,11 +206,11 @@ async fn process_job(
         repository
             .set_stage(job_id, lease_token, JobStage::Acquiring, 10)
             .await
-            .map_err(|error| error.to_string())?;
+            .map_err(|_| "job stage update failed".to_owned())?;
 
         tokio::fs::create_dir_all(&attempt_dir)
             .await
-            .map_err(|error| format!("could not create job staging directory: {error}"))?;
+            .map_err(|_| "could not create job staging directory".to_owned())?;
         let destination = attempt_dir.join("source.osm.pbf");
 
         let policy = DownloadPolicy {
@@ -220,12 +220,12 @@ async fn process_job(
         };
         let receipt = download(&job.source_uri, &destination, &policy)
             .await
-            .map_err(|error| error.to_string())?;
+            .map_err(|_| "source acquisition failed".to_owned())?;
 
         repository
             .set_stage(job_id, lease_token, JobStage::Checksum, 80)
             .await
-            .map_err(|error| error.to_string())?;
+            .map_err(|_| "job stage update failed".to_owned())?;
 
         if let Some(expected) = job.source_checksum.as_deref() {
             let expected = expected.strip_prefix("sha256:").unwrap_or(expected);
@@ -238,7 +238,7 @@ async fn process_job(
         repository
             .set_stage(job_id, lease_token, JobStage::Inspecting, 90)
             .await
-            .map_err(|error| error.to_string())?;
+            .map_err(|_| "job stage update failed".to_owned())?;
         let inspection = inspect(
             &destination,
             &InspectionPolicy {
@@ -248,14 +248,13 @@ async fn process_job(
             },
         )
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(|_| "PBF structural inspection failed".to_owned())?;
 
         Ok(json!({
             "artifact": "source.osm.pbf",
             "artifact_path": destination,
             "bytes": receipt.bytes,
             "sha256": receipt.sha256,
-            "source_uri": job.source_uri,
             "pbf": {
                 "file_size_bytes": inspection.file_size_bytes,
                 "nodes": inspection.nodes,
