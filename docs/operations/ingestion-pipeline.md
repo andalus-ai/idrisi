@@ -31,6 +31,12 @@ The `ingestion_jobs` table is the durable control-plane record. Workers claim qu
 
 A job is not successful until publication commits. If publication fails, the prior published version remains active.
 
+## Durable worker lease repository
+
+The ingestion crate now includes a PostgreSQL `JobRepository` backed by SQLx. It claims queued jobs and reclaims expired leases using a transaction and `FOR UPDATE SKIP LOCKED`, increments the attempt counter, and records a worker owner plus a fresh UUID fencing token. Heartbeats, stage/progress updates, completion, and failure transitions require the active token and an unexpired lease. A stale worker therefore receives `LeaseLost` rather than mutating a job reclaimed by another worker. Jobs whose lease expires after exhausting `max_attempts` are marked failed during the next claim operation.
+
+Migration `0003_ingestion_job_leases.sql` adds the ownership fields and constraints. Existing running jobs are requeued during migration because they cannot safely inherit a lease owned by a process from the old schema. The repository is a control-plane primitive; it is not yet a continuously running worker or a complete ingestion pipeline. Publication must remain a separate, transactionally guarded operation and must check lease ownership immediately before committing.
+
 ## Initial Rust importer adapter
 
 The `idrisi-ingestion` crate now contains an `Osm2pgsqlConfig` and deterministic invocation builder. It creates an argument vector (never a shell string), validates PostgreSQL database/role/staging-schema identifiers, and deliberately excludes passwords from command-line arguments. The caller must inject credentials from a secret source when spawning the child process.
