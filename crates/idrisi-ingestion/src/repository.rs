@@ -87,7 +87,11 @@ impl JobRepository {
         if worker_id.trim().is_empty() {
             return Err(LeaseError::InvalidWorkerId);
         }
-        if supported_job_types.is_empty() || supported_job_types.iter().any(|kind| kind.trim().is_empty()) {
+        if supported_job_types.is_empty()
+            || supported_job_types
+                .iter()
+                .any(|kind| kind.trim().is_empty())
+        {
             return Err(LeaseError::InvalidJobTypes);
         }
         if lease_duration.is_zero() || lease_duration > Duration::from_secs(24 * 60 * 60) {
@@ -141,7 +145,12 @@ impl JobRepository {
         .bind(worker_id)
         .bind(lease_token)
         .bind(seconds as f64)
-        .bind(supported_job_types.iter().map(|kind| (*kind).to_owned()).collect::<Vec<_>>())
+        .bind(
+            supported_job_types
+                .iter()
+                .map(|kind| (*kind).to_owned())
+                .collect::<Vec<_>>(),
+        )
         .fetch_optional(&mut *tx)
         .await?;
 
@@ -201,11 +210,7 @@ impl JobRepository {
     }
 
     /// Returns an interrupted job to the queue without consuming a retry attempt.
-    pub async fn release(
-        &self,
-        job_id: Uuid,
-        lease_token: Uuid,
-    ) -> Result<(), LeaseError> {
+    pub async fn release(&self, job_id: Uuid, lease_token: Uuid) -> Result<(), LeaseError> {
         let result = sqlx::query(
             r#"UPDATE ingestion_jobs
                SET status = 'queued', stage = 'queued', progress_percent = 0,
