@@ -4,7 +4,7 @@
 //! worker is conditional on that token, so a worker whose lease expired cannot
 //! advance or publish a job after another worker has reclaimed it.
 
-use sqlx::{PgPool, FromRow};
+use sqlx::{FromRow, PgPool};
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -49,6 +49,10 @@ impl JobStage {
 pub enum LeaseError {
     #[error("lease duration must be between 1 second and 24 hours")]
     InvalidLeaseDuration,
+    #[error("worker id must not be empty")]
+    InvalidWorkerId,
+    #[error("progress must be between 0 and 99 before completion")]
+    InvalidProgress,
     #[error("job lease is no longer owned by this worker")]
     LeaseLost,
     #[error("database operation failed: {0}")]
@@ -73,10 +77,10 @@ impl JobRepository {
         lease_token: Uuid,
         lease_duration: Duration,
     ) -> Result<Option<ClaimedJob>, LeaseError> {
-        if worker_id.trim().is_empty()
-            || lease_duration.is_zero()
-            || lease_duration > Duration::from_secs(24 * 60 * 60)
-        {
+        if worker_id.trim().is_empty() {
+            return Err(LeaseError::InvalidWorkerId);
+        }
+        if lease_duration.is_zero() || lease_duration > Duration::from_secs(24 * 60 * 60) {
             return Err(LeaseError::InvalidLeaseDuration);
         }
         let seconds = i64::try_from(lease_duration.as_secs())
@@ -166,7 +170,7 @@ impl JobRepository {
         progress_percent: i16,
     ) -> Result<(), LeaseError> {
         if !(0..=99).contains(&progress_percent) {
-            return Err(LeaseError::InvalidLeaseDuration);
+            return Err(LeaseError::InvalidProgress);
         }
         let result = sqlx::query(
             r#"UPDATE ingestion_jobs
