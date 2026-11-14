@@ -53,6 +53,10 @@ pub enum LeaseError {
     InvalidLeaseDuration,
     #[error("worker id must not be empty")]
     InvalidWorkerId,
+    #[error("worker must declare at least one non-empty supported job type")]
+    InvalidJobTypes,
+    #[error("retry delay must not be negative")]
+    InvalidRetryDelay,
     #[error("progress must be between 0 and 99 before completion")]
     InvalidProgress,
     #[error("job lease is no longer owned by this worker")]
@@ -84,7 +88,7 @@ impl JobRepository {
             return Err(LeaseError::InvalidWorkerId);
         }
         if supported_job_types.is_empty() || supported_job_types.iter().any(|kind| kind.trim().is_empty()) {
-            return Err(LeaseError::InvalidWorkerId);
+            return Err(LeaseError::InvalidJobTypes);
         }
         if lease_duration.is_zero() || lease_duration > Duration::from_secs(24 * 60 * 60) {
             return Err(LeaseError::InvalidLeaseDuration);
@@ -230,7 +234,7 @@ impl JobRepository {
         retry_delay: chrono::Duration,
     ) -> Result<(), LeaseError> {
         if retry_delay < chrono::Duration::zero() {
-            return Err(LeaseError::InvalidProgress);
+            return Err(LeaseError::InvalidRetryDelay);
         }
         let result = sqlx::query(
             r#"UPDATE ingestion_jobs
