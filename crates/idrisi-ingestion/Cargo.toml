@@ -8,7 +8,7 @@ publish.workspace = true
 reqwest.workspace = true
 sha2.workspace = true
 sqlx.workspace = true
-thiserror.workspace = true
+thiserror = "2"
 tokio.workspace = true
 
 chrono.workspace = true
