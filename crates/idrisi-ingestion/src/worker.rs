@@ -105,6 +105,9 @@ mod tests {
             async { Ok::<_, &'static str>(()) },
         )
         .await;
-        assert!(matches!(result, Err(SupervisionError::InvalidHeartbeatInterval)));
+        assert!(matches!(
+            result,
+            Err(SupervisionError::InvalidHeartbeatInterval)
+        ));
     }
 }
