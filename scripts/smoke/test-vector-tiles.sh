@@ -40,18 +40,9 @@ for source in "${SOURCES[@]}"; do
     exit 1
   }
 
-  template="$(jq -r '.tiles[0]' "$tilejson")"
-  tile_url="${template//\{z\}/$TILE_Z}"
-  tile_url="${tile_url//\{x\}/$TILE_X}"
-  tile_url="${tile_url//\{y\}/$TILE_Y}"
-
-  # Martin may advertise relative tile paths. Resolve those under the Iket
-  # public prefix so the request remains on the gateway route.
-  if [[ "$tile_url" == /* ]]; then
-    tile_url="$BASE_URL/${tile_url#/}"
-  elif [[ "$tile_url" != http://* && "$tile_url" != https://* ]]; then
-    tile_url="$BASE_URL/$tile_url"
-  fi
+  # Use the documented public route explicitly instead of following Martin's
+  # TileJSON URL template, which may advertise an internal upstream hostname.
+  tile_url="$BASE_URL/tiles/$source/$TILE_Z/$TILE_X/$TILE_Y"
 
   echo "Checking MVT: $source z=$TILE_Z x=$TILE_X y=$TILE_Y"
   headers="$TMP_DIR/$source.headers"
