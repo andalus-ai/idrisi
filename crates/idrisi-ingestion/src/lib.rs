@@ -390,3 +390,53 @@ pub mod process {
         root.join(job_id).join("source.osm.pbf")
     }
 }
+
+
+#[cfg(test)]
+mod acquisition_tests {
+    use super::acquisition::{download, DownloadError, DownloadPolicy};
+    use std::{collections::HashSet, path::PathBuf, time::Duration};
+
+    fn policy() -> DownloadPolicy {
+        DownloadPolicy {
+            allowed_hosts: HashSet::from(["download.example.org".to_owned()]),
+            max_bytes: 1024,
+            request_timeout: Duration::from_secs(2),
+        }
+    }
+
+    #[tokio::test]
+    async fn rejects_non_https_sources_before_network_access() {
+        let result = download(
+            "http://download.example.org/indonesia.osm.pbf",
+            &PathBuf::from("/tmp/idrisi-test-never-created.pbf"),
+            &policy(),
+        )
+        .await;
+        assert!(matches!(result, Err(DownloadError::InvalidUrl)));
+    }
+
+    #[tokio::test]
+    async fn rejects_hosts_outside_operator_allowlist() {
+        let result = download(
+            "https://attacker.example/indonesia.osm.pbf",
+            &PathBuf::from("/tmp/idrisi-test-never-created.pbf"),
+            &policy(),
+        )
+        .await;
+        assert!(matches!(result, Err(DownloadError::HostNotAllowed)));
+    }
+
+    #[tokio::test]
+    async fn rejects_empty_allowlist() {
+        let mut policy = policy();
+        policy.allowed_hosts.clear();
+        let result = download(
+            "https://download.example.org/indonesia.osm.pbf",
+            &PathBuf::from("/tmp/idrisi-test-never-created.pbf"),
+            &policy,
+        )
+        .await;
+        assert!(matches!(result, Err(DownloadError::InvalidPolicy)));
+    }
+}
