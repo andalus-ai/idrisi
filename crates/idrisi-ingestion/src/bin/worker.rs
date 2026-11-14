@@ -170,6 +170,10 @@ async fn process_job(
     let attempt_dir = config.data_dir
         .join(job_id.to_string())
         .join(format!("attempt-{}-{}", job.attempt_count, lease_token));
+    if *shutdown.borrow() {
+        let _ = repository.release(job_id, lease_token).await;
+        return;
+    }
     let work = async {
         if job.job_type != "osm.pbf.stage" || job.importer_name != "geofabrik-pbf-download" {
             return Err("job type or importer is not registered by this worker".to_owned());
