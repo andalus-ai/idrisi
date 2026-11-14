@@ -49,6 +49,7 @@ services:
       dockerfile: Dockerfile
     entrypoint: ["/usr/local/bin/idrisi-worker"]
     restart: unless-stopped
+    stop_grace_period: 30s
     environment:
       DATABASE_URL: postgres://idrisi_ingest:${IDRISI_INGEST_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-idrisi}
       IDRISI_WORKER_DATA_DIR: /var/lib/idrisi/ingestion
