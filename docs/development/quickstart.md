@@ -13,7 +13,7 @@ Copy `.env.example` to `.env`, replace all development passwords with unique val
 
     docker compose up --build -d
 
-The stack starts PostGIS, applies catalog migrations automatically, starts the private Rust domain API, and starts Martin. The API and database development ports bind to loopback only. Martin has no published host port and is reachable only on the private Docker network.
+The stack starts PostGIS, applies catalog migrations automatically, starts the private Rust domain API, Martin, and the static MapLibre reference viewer. The API and database development ports bind to loopback only. Martin has no published host port and is reachable only on the private Docker network.
 
 Postgres first-boot initialization creates separate `martin_tiles` and `idrisi_ingest` roles. Martin is read-only. The ingestion role can write only to the tile/import schemas and publish dataset-version metadata; it is not the API catalog owner or Postgres superuser.
 
@@ -67,6 +67,12 @@ The public route contract, once the Iket tile route is loaded, is:
     GET https://<iket-host>/api/idrisi/tiles/{source}/{z}/{x}/{y}
 
 The first endpoint returns TileJSON; the second returns Mapbox Vector Tile protobuf. Martin's internal listener is not exposed to the host. The example Iket route is in `infrastructure/iket/service.yaml.example`.
+
+## MapLibre reference viewer
+
+Open [http://localhost:8090](http://localhost:8090) after starting Compose. The viewer is a static development client; configure the Iket public base URL and bearer token if required. For a separately hosted Iket gateway, enter its full origin plus `/api/idrisi` and configure CORS to allow the viewer origin and the Authorization header. The viewer does not store tokens beyond the current page session. See [viewer documentation](../../examples/maplibre/README.md).
+
+The viewer is expected to show an empty basemap until the Bandung OSM import has completed and Iket can reach Martin. It does not proxy Iket traffic itself.
 
 ## Health checks
 
