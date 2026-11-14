@@ -39,7 +39,7 @@ The API is exposed on loopback for local development. PostGIS is exposed on loop
 
 ## Iket gateway
 
-Iket is maintained separately. Follow docs/integrations/iket.md to bootstrap a pinned Iket release and configure its upstream route to idrisi-api:8080. For a separate Compose project, attach Iket to the Idrisi network or use an explicitly configured private network; do not expose the Idrisi API publicly in a production deployment.
+Iket is maintained separately. Follow docs/integrations/iket.md to bootstrap a pinned Iket release and configure its upstream route to idrisi-api:8080. The Compose stack creates the named Docker network idrisi-internal. Attach the Iket container to that network (for example, with docker network connect idrisi-internal <iket-container>) or declare it as an external network in the Iket Compose project. Do not expose the Idrisi API publicly in a production deployment.
 
 ## Current limitations
 
