@@ -43,6 +43,7 @@ fn validate_lease(lease: Duration) -> Result<(), QueueError> {
 pub async fn claim_next(pool: &PgPool, worker_id: &str, lease: Duration) -> Result<Option<IngestionJob>, QueueError> {
     validate_worker(worker_id)?;
     validate_lease(lease)?;
+    sqlx::query("UPDATE ingestion_jobs SET status = 'failed', locked_by = NULL, lease_expires_at = NULL, finished_at = now(), last_error = COALESCE(last_error, 'worker lease expired after final attempt'), updated_at = now() WHERE status = 'running' AND lease_expires_at < now() AND attempts >= max_attempts").execute(pool).await?;
     let seconds = lease.num_seconds().max(1) as i32;
     let job = sqlx::query_as::<_, IngestionJob>(r#"
         WITH candidate AS (
