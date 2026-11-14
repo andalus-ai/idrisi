@@ -1,0 +1,34 @@
+# Example Iket service routes for Idrisi.
+# Validate this file with the exact Iket release deployed.
+# This file is a route template, not a complete Iket configuration.
+version: 1
+services:
+  - name: "Idrisi Domain API"
+    description: "Private geospatial domain API"
+    host: "http://idrisi-api:8080"
+    tags: ["private", "idrisi", "geospatial"]
+    group: "idrisi"
+    routes:
+      - path: "/api/idrisi/v1/{rest:.*}"
+        methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+        name: "Idrisi API v1"
+        description: "Public Idrisi API prefix routed to the private domain API"
+        tags: ["idrisi", "api"]
+        priority: 100
+        requireAuth: true
+        stripPath: true
+        enabled: true
+        backend:
+          - url_pattern: "/v1/{rest:.*}"
+
+      - path: "/api/idrisi/health/{rest:.*}"
+        methods: ["GET"]
+        name: "Idrisi Health"
+        description: "Health endpoints; restrict at network or gateway policy layer as appropriate"
+        tags: ["idrisi", "health"]
+        priority: 110
+        requireAuth: false
+        stripPath: true
+        enabled: true
+        backend:
+          - url_pattern: "/health/{rest:.*}"
