@@ -159,15 +159,7 @@ BEGIN
         END IF;
 
         EXECUTE format(
-            'SELECT COUNT(*)::bigint, \
-             COUNT(*) FILTER (WHERE geom IS NULL OR public.ST_IsEmpty(geom))::bigint, \
-             COUNT(*) FILTER (WHERE geom IS NOT NULL AND public.ST_SRID(geom) <> 4326)::bigint, \
-             COUNT(*) FILTER (WHERE geom IS NOT NULL AND NOT public.ST_IsValid(geom))::bigint, \
-             MIN(public.ST_XMin(public.Box3D(geom))), \
-             MIN(public.ST_YMin(public.Box3D(geom))), \
-             MAX(public.ST_XMax(public.Box3D(geom))), \
-             MAX(public.ST_YMax(public.Box3D(geom))) \
-             FROM %I.%I',
+            'SELECT COUNT(*)::bigint, COUNT(*) FILTER (WHERE geom IS NULL OR public.ST_IsEmpty(geom))::bigint, COUNT(*) FILTER (WHERE geom IS NOT NULL AND public.ST_SRID(geom) <> 4326)::bigint, COUNT(*) FILTER (WHERE geom IS NOT NULL AND NOT public.ST_IsValid(geom))::bigint, MIN(public.ST_XMin(public.Box3D(geom))), MIN(public.ST_YMin(public.Box3D(geom))), MAX(public.ST_XMax(public.Box3D(geom))), MAX(public.ST_YMax(public.Box3D(geom))) FROM %I.%I',
             data_schema,
             layer_name
         )
