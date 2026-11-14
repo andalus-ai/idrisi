@@ -99,7 +99,9 @@ mod tests {
     #[tokio::test]
     async fn rejects_interval_equal_to_lease_duration() {
         let result = run_with_heartbeat(
-            &JobRepository::new(sqlx::PgPool::connect_lazy("postgres://unused:unused@localhost/unused").unwrap()),
+            &JobRepository::new(
+                sqlx::PgPool::connect_lazy("postgres://unused:unused@localhost/unused").unwrap(),
+            ),
             uuid::Uuid::nil(),
             uuid::Uuid::nil(),
             Duration::from_secs(30),
