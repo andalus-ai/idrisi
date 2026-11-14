@@ -2,6 +2,8 @@
 
 This document establishes proposed public API shapes. It is a design contract, not a statement that endpoints are implemented. Exact OpenAPI schemas will be added before the first API release.
 
+Iket is the public gateway. Clients reach the configured public prefix on Iket, which routes to private Idrisi domain API endpoints under /v1. Iket handles edge authentication and traffic policies when explicitly configured; Idrisi remains responsible for domain validation and tenant/resource authorization. Never trust identity headers supplied directly by clients.
+
 ## Principles
 
 - Base path: `/v1`.
