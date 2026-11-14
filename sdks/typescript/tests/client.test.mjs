@@ -20,3 +20,10 @@ test("creates vector tile source on Iket public prefix", () => {
   assert.deepEqual(createMapLibreVectorSource(client,"osm_roads",{minzoom:5,maxzoom:18}), {type:"vector",tiles:["https://maps.example.test/api/idrisi/tiles/osm_roads/{z}/{x}/{y}"],minzoom:5,maxzoom:18});
 });
 test("rejects empty base URL", () => assert.throws(() => new IdrisiClient({baseUrl:" "}), /baseUrl is required/));
+test("MapLibre transform is synchronous and carries current token", () => {
+  const client = new IdrisiClient({baseUrl:"https://maps.example.test", token:"initial", fetch:async()=>Response.json({})});
+  const transform = (url) => ({url, headers:Object.fromEntries(client.getMapLibreRequestHeaders().entries())});
+  assert.equal(transform("https://maps.example.test/tile").headers.Authorization, "Bearer initial");
+  client.setToken("rotated");
+  assert.equal(transform("https://maps.example.test/tile").headers.Authorization, "Bearer rotated");
+});
