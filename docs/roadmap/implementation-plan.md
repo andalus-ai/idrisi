@@ -19,7 +19,8 @@ Build a vertical slice early: start the private Idrisi API, PostGIS, and Martin;
 - **Catalog:** source, dataset, version, layer, licensing, attribution, and coverage schema is implemented. The Geofabrik Java/OSM pilot source and Bandung dataset/layers are registered by migration.
 - **Vector tiles:** Martin 1.16.1 is configured as a private Compose service with a dedicated read-only database role; Iket route examples and the tile contract are committed.
 - **Ingestion pipeline:** one-shot Bandung OSM PBF acquisition, MD5 verification, SHA-256 provenance, osm2pgsql flex import, isolated importer role, and catalog version publication are implemented.
-- **Not yet demonstrated:** live Compose startup, execution of the OSM import, real non-empty TileJSON/MVT response, MapLibre rendering, and Iket end-to-end gateway test. The `tiles` schema remains empty until an operator runs the import.
+- **Reference client:** static MapLibre GL JS viewer with Bandung camera, four layer toggles, Iket base URL and in-memory bearer-token input, and OSM attribution is implemented.
+- **Not yet demonstrated:** live Compose startup, execution of the OSM import, real non-empty TileJSON/MVT response, live MapLibre rendering against populated data, and Iket end-to-end gateway test. The `tiles` schema remains empty until an operator runs the import.
 
 ## Phase 0 — Repository and engineering foundation
 
@@ -177,7 +178,7 @@ Acceptance:
 ## First 2–3 implementation iterations
 
 1. **Iteration A — foundation completed:** Rust workspace, CI, configuration, health endpoints, PostGIS catalog schema, Compose Martin service, read-only tile role, and Iket route examples.
-2. **Iteration B — pipeline implemented, runtime validation next:** Bandung OSM acquisition/import script, provenance manifest, normalized `tiles` tables, and catalog publication are committed. Execute on a deployment host, validate non-empty TileJSON/MVT through Iket, and build the MapLibre reference view.
+2. **Iteration B — pipeline implemented, runtime validation next:** Bandung OSM acquisition/import script, provenance manifest, normalized `tiles` tables, and catalog publication are committed. Execute on a deployment host, validate non-empty TileJSON/MVT through Iket, and validate the MapLibre viewer against populated tiles and complete the Iket end-to-end test.
 3. **Iteration C:** PMTiles export, Valhalla graph build/integration, route API contract, and end-to-end integration tests.
 
 ## Initial pilot recommendation
