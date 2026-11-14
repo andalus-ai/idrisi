@@ -36,7 +36,7 @@ Idrisi is intended to be reusable by applications such as Jezaku without couplin
 - **Client rendering:** MapLibre GL JS for the reference web client; mobile SDKs and other clients consume the same APIs.
 - **Operations:** Docker Compose for the first reproducible self-hosted deployment, with documented persistent volumes, backups, health checks, and observability.
 
-See [TypeScript SDK](sdks/typescript/README.md), [Architecture](docs/architecture/overview.md), [Iket integration](docs/integrations/iket.md), [Bandung OSM pilot ingestion](docs/ingestion/osm-bandung-pilot.md), [MapLibre viewer](examples/maplibre/README.md), [Implementation Plan](docs/roadmap/implementation-plan.md), and [AGENTS.md](AGENTS.md).
+See [Architecture](docs/architecture/overview.md), [Iket integration](docs/integrations/iket.md), [Bandung OSM pilot ingestion](docs/ingestion/osm-bandung-pilot.md), [MapLibre viewer](examples/maplibre/README.md), [Implementation Plan](docs/roadmap/implementation-plan.md), [Phase 1 infrastructure](docs/operations/phase-1-infrastructure.md), and [AGENTS.md](AGENTS.md).
 
 ## Repository status
 
@@ -44,26 +44,18 @@ The repository contains the Rust domain API, PostGIS catalog migrations, a priva
 
 ## Development
 
-The first implementation milestone will establish:
-
-- A Rust workspace and shared configuration conventions
-- A local Docker Compose environment with PostgreSQL/PostGIS
-- A private Rust domain API skeleton and health/readiness endpoints
-- OpenAPI contracts and integration test conventions
-- A small Indonesia regional data-ingestion proof of concept
-
-Do not download or commit large geographic datasets into Git. Store source files, generated tiles, routing graphs, and raster assets in configured data volumes or object storage.
-
-## Local development stack
-
-A local PostGIS + Idrisi API + Martin + MapLibre reference viewer stack is available through Docker Compose. See [Local Development](docs/operations/local-development.md) for prerequisites, startup commands, endpoints, and current limitations.
+The local stack is defined by the single canonical `compose.yaml` file. It starts PostgreSQL/PostGIS, the Rust API, Martin, and the static reference viewer.
 
 ```sh
 cp .env.example .env
+# Replace development passwords before starting.
+docker compose config --quiet
 docker compose up --build -d
 ```
 
-The stack starts the infrastructure and static reference viewer; it does not automatically download or import geographic datasets. Open http://localhost:8090 and configure the Iket URL/token after running the OSM import.
+The stack starts infrastructure and the static reference viewer; it does not automatically download or import geographic datasets. Open http://127.0.0.1:8090 and configure the Iket URL/token after running the OSM import. See [Local Development](docs/operations/local-development.md) and [Phase 1 Infrastructure](docs/operations/phase-1-infrastructure.md).
+
+Do not download or commit large geographic datasets into Git. Store source files, generated tiles, routing graphs, and raster assets in configured data volumes or object storage.
 
 ## Data and attribution
 
