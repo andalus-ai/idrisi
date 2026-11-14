@@ -25,5 +25,5 @@ test("MapLibre transform is synchronous and carries current token", () => {
   const transform = createMapLibreTransformRequest(client);
   assert.equal(transform("https://maps.example.test/tile").headers.authorization, "Bearer initial");
   client.setToken("rotated");
-  assert.equal(transform("https://maps.example.test/tile").headers.Authorization, "Bearer rotated");
+  assert.equal(transform("https://maps.example.test/tile").headers.authorization, "Bearer rotated");
 });

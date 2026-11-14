@@ -22,7 +22,7 @@ jobs:
       - name: Prepare local Compose environment
         run: cp .env.example .env
       - name: Compose config
-        run: docker compose -f docker-compose.yaml config --quiet
+        run: docker compose -f compose.yaml config --quiet
       - name: Ingestion and smoke-test script syntax
         run: |
           bash -n scripts/ingest/osm-bandung.sh
