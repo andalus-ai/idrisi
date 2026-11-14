@@ -4,11 +4,11 @@
 
 The separate `idrisi-worker` process polls the durable PostgreSQL queue, claims only registered job types, renews fenced leases while work is running, and records retryable failures with bounded exponential backoff.
 
-The first registered handler is `osm.pbf.stage`. It downloads an OSM PBF into a persistent, per-job/per-attempt directory, accepts HTTPS only, rejects redirects, enforces an operator-configured host allowlist and byte limit, computes SHA-256, checks a queued checksum when one is supplied, then runs `osmium fileinfo --extended --json` against the complete PBF. The bounded inspection report records object counts, extent, timestamps and replication metadata.
+The worker supports `osm.pbf.stage` and `osm.pbf.import`. Both download an allowlisted HTTPS PBF, enforce a streamed byte ceiling, calculate SHA-256, optionally verify a queued checksum, and run bounded full-file `osmium fileinfo` inspection. The import handler additionally invokes osm2pgsql flex using the reviewed Bandung profile and validates the imported PostGIS tables.
 
 ## Important boundary
 
-This slice stages and structurally inspects the source artifact. It does **not** run osm2pgsql, create PostGIS staging tables, publish a dataset version, or update Martin-visible tables. A successful job means the PBF was downloaded, checksum-verified (when a checksum was supplied), and parsed by osmium; it does not mean map data is live. The next worker increment will add isolated import and validation; publication remains a separate transaction.
+A successful `osm.pbf.stage` job means the source PBF was downloaded, checksum-verified when requested, and parsed by osmium. A successful `osm.pbf.import` job means it was imported into lease-derived staging schemas and passed PostGIS validation. Neither job publishes data or updates Martin-visible tables. The worker cannot access the published `tiles` schema; publication remains a separate transaction and role.
 
 ## Compose
 
@@ -44,6 +44,33 @@ ON CONFLICT (idempotency_key) DO NOTHING;
 
 Optional `source_checksum` should contain the expected SHA-256 hex digest (or `sha256:<digest>`). The worker will reject a mismatch.
 
+
+## Queue an isolated OSM import
+
+The import handler derives its data and middle schemas from the current lease token. It derives the import bounding box from the dataset's registered coverage; job payloads cannot supply schema names, SQL, Lua, or executable paths. It re-downloads the source through the configured allowlist.
+
+```sql
+INSERT INTO ingestion_jobs (
+    dataset_id, job_type, idempotency_key, source_uri, importer_name,
+    importer_version, max_attempts, requested_by
+)
+SELECT
+    dataset.id,
+    'osm.pbf.import',
+    'osm-bandung-import-v1',
+    source.source_uri,
+    'osm2pgsql-flex',
+    'debian-bookworm',
+    3,
+    'operator'
+FROM datasets AS dataset
+JOIN data_sources AS source ON source.id = dataset.default_source_id
+WHERE dataset.slug = 'osm-bandung-pilot'
+ON CONFLICT (idempotency_key) DO NOTHING;
+```
+
+Each attempt uses `idrisi_stage_<lease-uuid>` for output tables and `idrisi_mid_<lease-uuid>` for osm2pgsql slim state. Validation checks all four expected layers, non-empty roads, null/empty/invalid geometry, SRID 4326, and extents inside the catalog coverage. Failed jobs drop their attempt schemas; successful imports remain unpublished for a future publisher. A hard process loss may leave orphan schemas for retention cleanup.
+
 ## Worker configuration
 
 | Variable | Default | Purpose |
@@ -58,6 +85,9 @@ Optional `source_checksum` should contain the expected SHA-256 hex digest (or `s
 | `IDRISI_WORKER_REQUEST_TIMEOUT_SECONDS` | 14400 | Maximum source download duration |
 | `IDRISI_OSMIUM_PATH` | `/usr/bin/osmium` | Pinned osmium-tool executable path |
 | `IDRISI_WORKER_INSPECTION_TIMEOUT_SECONDS` | 1800 | Maximum full-file PBF inspection duration |
+| `IDRISI_OSM2PGSQL_PATH` | `/usr/bin/osm2pgsql` | osm2pgsql flex executable |
+| `IDRISI_OSM_STYLE_PATH` | `/opt/idrisi/osm2pgsql/bandung.lua` | Reviewed flex style template |
+| `IDRISI_WORKER_IMPORT_TIMEOUT_SECONDS` | 21600 | Maximum import duration |
 
 ## Operational notes
 
@@ -79,9 +109,4 @@ Its flex-style renderer redirects the four reviewed `schema = 'tiles'` declarati
 in the committed Bandung Lua profile into the job's data schema. It fails closed
 if the template no longer contains exactly four declarations.
 
-This is a preparation primitive, not an active import stage yet: the worker does
-not create these schemas, invoke osm2pgsql, validate imported geometries, or publish
-the staged tables. Database grants and a fenced import handler must be added before
-enabling queue-driven imports. Do not manually execute a rendered style against a
-production database until the staging role's schema privileges and cleanup policy
-are deployed.
+This primitive is now used by the import handler. A narrowly scoped `SECURITY DEFINER` function creates and drops only the UUID-derived schemas; the worker cannot create arbitrary schemas or issue arbitrary DDL. The output schema is private to the ingestion role and is not visible to Martin.
