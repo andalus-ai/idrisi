@@ -18,8 +18,8 @@ CREATE UNIQUE INDEX ingestion_jobs_publish_source_unique
       AND status IN ('queued', 'running', 'succeeded');
 
 -- Publisher owns live/archive tables. Martin only receives SELECT on the live tables.
-CREATE SCHEMA IF NOT EXISTS idrisi_archive AUTHORIZATION idrisi;
-ALTER SCHEMA idrisi_archive OWNER TO idrisi;
+CREATE SCHEMA IF NOT EXISTS idrisi_archive AUTHORIZATION CURRENT_USER;
+ALTER SCHEMA idrisi_archive OWNER TO CURRENT_USER;
 GRANT USAGE ON SCHEMA tiles TO martin_tiles;
 
 GRANT SELECT ON data_sources, datasets, layers, dataset_versions, ingestion_jobs
@@ -227,7 +227,7 @@ BEGIN
         END IF;
 
         EXECUTE format('ALTER TABLE %I.%I SET SCHEMA %I', data_schema, layer_name, 'tiles');
-        EXECUTE format('ALTER TABLE %I.%I OWNER TO idrisi', 'tiles', layer_name);
+        EXECUTE format('ALTER TABLE %I.%I OWNER TO CURRENT_USER', 'tiles', layer_name);
         EXECUTE format('GRANT SELECT ON TABLE %I.%I TO martin_tiles', 'tiles', layer_name);
     END LOOP;
 
