@@ -1,0 +1,40 @@
+{
+  "dataset": {
+    "slug": "osm-indonesia-roads-places",
+    "name": "OpenStreetMap Indonesia — roads and places",
+    "description": "OSM-derived roads, paths, places, and selected map features for Indonesia.",
+    "domain": "road",
+    "status": "draft",
+    "metadata": {
+      "region": "ID",
+      "data_class": "openstreetmap-derived",
+      "update_policy": "operator-triggered",
+      "intended_use": "general-purpose mapping; not an authoritative nautical or aviation source"
+    }
+  },
+  "source": {
+    "name": "OpenStreetMap contributors via an approved regional extract provider",
+    "source_type": "osm_pbf",
+    "source_uri": "https://REPLACE-WITH-APPROVED-EXTRACT-URL",
+    "license_id": "ODbL-1.0",
+    "license_url": "https://opendatacommons.org/licenses/odbl/1-0/",
+    "attribution": "© OpenStreetMap contributors",
+    "terms_url": "https://www.openstreetmap.org/copyright",
+    "metadata": {
+      "provider": "RECORD-ACTUAL-PROVIDER",
+      "region": "Indonesia",
+      "retrieved_at": "REPLACE-WITH-UTC-TIMESTAMP",
+      "extract_timestamp": "RECORD-PROVIDER-TIMESTAMP-IF-AVAILABLE",
+      "checksum_sha256": "RECORD-CALCULATED-SHA256",
+      "notes": "Example only. Replace all placeholders and review provider terms before use."
+    }
+  },
+  "ingestion": {
+    "job_type": "osm_pbf_import",
+    "importer": "osm2pgsql",
+    "importer_version": "PIN-AN-APPROVED-VERSION",
+    "idempotency_key": "osm-indonesia-roads-places:REPLACE-WITH-EXTRACT-DATE-AND-CHECKSUM",
+    "target_crs": "EPSG:4326",
+    "publication_policy": "validate-before-publish"
+  }
+}
