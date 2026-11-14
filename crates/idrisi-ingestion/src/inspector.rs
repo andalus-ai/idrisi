@@ -5,7 +5,7 @@
 
 use serde_json::Value;
 use std::{path::{Path, PathBuf}, process::Stdio, time::Duration};
-use tokio::{process::Command, time::timeout};
+use tokio::{io::AsyncReadExt, process::Command, time::timeout};
 
 #[derive(Debug, Clone)]
 pub struct InspectionPolicy {
@@ -83,21 +83,35 @@ pub async fn inspect(
         .spawn()
         .map_err(InspectionError::Spawn)?;
 
-    let output = match timeout(policy.deadline, child.wait_with_output()).await {
-        Ok(Ok(output)) => output,
-        Ok(Err(error)) => return Err(InspectionError::Spawn(error)),
-        Err(_) => return Err(InspectionError::TimedOut),
-    };
-    if !output.status.success() {
-        return Err(InspectionError::ToolFailed(output.status.code()));
-    }
-    if output.stdout.len() > policy.max_json_bytes {
-        return Err(InspectionError::OutputTooLarge);
-    }
+    let inspection = timeout(policy.deadline, async {
+        let stdout = child.stdout.take().ok_or(InspectionError::InvalidJson)?;
+        let mut reader = stdout.take(policy.max_json_bytes.saturating_add(1) as u64);
+        let mut bytes = Vec::with_capacity(policy.max_json_bytes.min(64 * 1024));
+        reader.read_to_end(&mut bytes).await.map_err(InspectionError::Spawn)?;
+        drop(reader);
+        if bytes.len() > policy.max_json_bytes {
+            let _ = child.kill().await;
+            let _ = child.wait().await;
+            return Err(InspectionError::OutputTooLarge);
+        }
+        let status = child.wait().await.map_err(InspectionError::Spawn)?;
+        if !status.success() {
+            return Err(InspectionError::ToolFailed(status.code()));
+        }
+        let report: Value =
+            serde_json::from_slice(&bytes).map_err(|_| InspectionError::InvalidJson)?;
+        parse_report(metadata.len(), report)
+    })
+    .await;
 
-    let report: Value =
-        serde_json::from_slice(&output.stdout).map_err(|_| InspectionError::InvalidJson)?;
-    parse_report(metadata.len(), report)
+    match inspection {
+        Ok(result) => result,
+        Err(_) => {
+            let _ = child.kill().await;
+            let _ = child.wait().await;
+            Err(InspectionError::TimedOut)
+        }
+    }
 }
 
 fn parse_report(file_size_bytes: u64, report: Value) -> Result<PbfInspection, InspectionError> {
@@ -116,7 +130,7 @@ fn parse_report(file_size_bytes: u64, report: Value) -> Result<PbfInspection, In
         .ok_or(InspectionError::MissingMetadata)?;
     let relation_count = counts.get("relations").and_then(Value::as_u64)
         .ok_or(InspectionError::MissingMetadata)?;
-    if node_count + way_count + relation_count == 0 {
+    if node_count.saturating_add(way_count).saturating_add(relation_count) == 0 {
         return Err(InspectionError::EmptyPbf);
     }
 
