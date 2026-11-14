@@ -18,7 +18,7 @@ Idrisi is intended to be reusable by applications such as Jezaku without couplin
 1. **Self-hosted first** — deployable on a developer workstation, a single server, or private infrastructure.
 2. **Indonesia-first, globally extensible** — optimize the first operational dataset and workflows for Indonesia while keeping geographic coverage configurable.
 3. **Provider-agnostic** — keep data providers, renderers, routers, and geocoders behind stable Idrisi contracts.
-4. **Rust for platform services** — use Rust for the gateway, orchestration, domain logic, ingestion coordination, and service adapters.
+4. **Rust for platform services** — use Rust for Idrisi domain APIs, orchestration, ingestion coordination, and service adapters; reuse Iket for the API gateway.
 5. **Reuse mature geospatial engines** — do not rewrite PostGIS, GDAL, PROJ, Martin, Valhalla, Nominatim, or other proven systems without a compelling, measured reason.
 6. **Open standards and explicit licensing** — support standard geospatial formats and record provenance, attribution, and usage rights for every dataset.
 7. **Offline-capable** — make versioned regional packages and cacheable map assets a first-class capability.
@@ -48,7 +48,7 @@ The first implementation milestone will establish:
 
 - A Rust workspace and shared configuration conventions
 - A local Docker Compose environment with PostgreSQL/PostGIS
-- An Axum gateway skeleton and health/readiness endpoints
+- A private Rust domain API skeleton and health/readiness endpoints
 - OpenAPI contracts and integration test conventions
 - A small Indonesia regional data-ingestion proof of concept
 
