@@ -11,7 +11,7 @@ CREATE UNIQUE INDEX ingestion_jobs_publish_source_unique
     WHERE job_type = 'osm.dataset.publish' AND source_job_id IS NOT NULL;
 
 -- Publisher owns live/archive tables. Martin only receives SELECT on the live tables.
-CREATE SCHEMA IF NOT EXISTS idrisi_archive AUTHORIZATION idrisi_publish;
+CREATE SCHEMA IF NOT EXISTS idrisi_archive AUTHORIZATION idrisi;
 GRANT USAGE ON SCHEMA tiles TO martin_tiles;
 
 GRANT SELECT ON data_sources, datasets, layers, dataset_versions, ingestion_jobs
@@ -175,7 +175,7 @@ BEGIN
         END IF;
 
         EXECUTE format('ALTER TABLE %I.%I SET SCHEMA %I', data_schema, layer_name, 'tiles');
-        EXECUTE format('ALTER TABLE %I.%I OWNER TO idrisi_publish', 'tiles', layer_name);
+        EXECUTE format('ALTER TABLE %I.%I OWNER TO idrisi', 'tiles', layer_name);
         EXECUTE format('GRANT SELECT ON TABLE %I.%I TO martin_tiles', 'tiles', layer_name);
     END LOOP;
 
