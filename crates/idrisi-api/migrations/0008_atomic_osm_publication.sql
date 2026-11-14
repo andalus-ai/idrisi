@@ -22,6 +22,7 @@ CREATE SCHEMA IF NOT EXISTS idrisi_archive AUTHORIZATION CURRENT_USER;
 ALTER SCHEMA idrisi_archive OWNER TO CURRENT_USER;
 GRANT USAGE ON SCHEMA tiles TO martin_tiles;
 
+GRANT USAGE ON SCHEMA public TO idrisi_publish;
 GRANT SELECT ON data_sources, datasets, layers, dataset_versions, ingestion_jobs
     TO idrisi_publish;
 GRANT UPDATE (
