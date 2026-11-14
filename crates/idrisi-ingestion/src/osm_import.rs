@@ -19,8 +19,6 @@ pub enum OSMImportError {
     OutsideCoverage(&'static str),
     #[error("could not validate imported data: {0}")]
     Database(#[from] sqlx::Error),
-    #[error("invalid PostGIS extent")]
-    InvalidExtent,
 }
 
 #[derive(Debug, Clone)]
@@ -172,6 +170,4 @@ mod tests {
         assert!(!validate_schema("tiles"));
         assert!(!validate_schema("idrisi_stage_0123;drop"));
     }
-
-
 }
