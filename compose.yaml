@@ -43,6 +43,30 @@ services:
     networks:
       - idrisi-internal
 
+  idrisi-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["/usr/local/bin/idrisi-worker"]
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://idrisi_ingest:${IDRISI_INGEST_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-idrisi}
+      IDRISI_WORKER_DATA_DIR: /var/lib/idrisi/ingestion
+      IDRISI_WORKER_ALLOWED_HOSTS: ${IDRISI_WORKER_ALLOWED_HOSTS:-download.geofabrik.de}
+      IDRISI_WORKER_MAX_SOURCE_BYTES: ${IDRISI_WORKER_MAX_SOURCE_BYTES:-21474836480}
+      IDRISI_WORKER_POLL_SECONDS: ${IDRISI_WORKER_POLL_SECONDS:-5}
+      IDRISI_WORKER_LEASE_SECONDS: ${IDRISI_WORKER_LEASE_SECONDS:-300}
+      IDRISI_WORKER_HEARTBEAT_SECONDS: ${IDRISI_WORKER_HEARTBEAT_SECONDS:-30}
+      IDRISI_WORKER_REQUEST_TIMEOUT_SECONDS: ${IDRISI_WORKER_REQUEST_TIMEOUT_SECONDS:-14400}
+      RUST_LOG: ${RUST_LOG:-info}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - idrisi-ingestion-data:/var/lib/idrisi/ingestion
+    networks:
+      - idrisi-internal
+
   martin:
     image: ghcr.io/maplibre/martin:1.16.1
     restart: unless-stopped
@@ -73,6 +97,7 @@ services:
 
 volumes:
   idrisi-postgres:
+  idrisi-ingestion-data:
 
 networks:
   idrisi-internal:
