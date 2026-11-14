@@ -16,6 +16,7 @@ use tracing::{error, info, warn};
 use uuid::Uuid;
 
 type WorkerError = Box<dyn Error + Send + Sync>;
+const SUPPORTED_JOB_TYPES: &[&str] = &["osm.pbf.stage"];
 
 struct Config {
     database_url: String,
@@ -100,7 +101,7 @@ async fn main() -> Result<(), WorkerError> {
         .init();
 
     let config = Config::from_env()?;
-    if config.lease_duration < config.heartbeat_interval * 2 {
+    if config.lease_duration.is_zero() || config.lease_duration > Duration::from_secs(24 * 60 * 60) || config.lease_duration < config.heartbeat_interval * 2 {
         return Err("worker lease must be at least twice the heartbeat interval".into());
     }
 
@@ -127,7 +128,7 @@ async fn main() -> Result<(), WorkerError> {
                 &config.worker_id,
                 Uuid::new_v4(),
                 config.lease_duration,
-                &["osm.pbf.stage"],
+                SUPPORTED_JOB_TYPES,
             ) => {
                 match result {
                     Ok(Some(job)) => {
@@ -259,5 +260,18 @@ async fn shutdown_signal() {
     #[cfg(not(unix))]
     {
         let _ = tokio::signal::ctrl_c().await;
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::retry_delay;
+
+    #[test]
+    fn retry_backoff_is_bounded() {
+        assert_eq!(retry_delay(1).num_seconds(), 30);
+        assert_eq!(retry_delay(2).num_seconds(), 60);
+        assert_eq!(retry_delay(20).num_seconds(), 960);
     }
 }
