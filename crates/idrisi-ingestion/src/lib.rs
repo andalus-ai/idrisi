@@ -5,11 +5,10 @@
 //! never through command-line arguments or persisted job metadata.
 
 pub mod inspector;
+pub mod osm_import;
 pub mod repository;
 pub mod staging;
-pub mod inspector;
 pub mod worker;
-pub mod osm_import;
 
 use std::{ffi::OsString, path::PathBuf};
 
@@ -23,6 +22,7 @@ pub struct Osm2pgsqlConfig {
     pub port: u16,
     pub username: String,
     pub schema: String,
+    pub middle_schema: String,
     pub table_prefix: String,
     pub bbox: String,
 }
@@ -67,6 +67,7 @@ impl Osm2pgsqlConfig {
         validate_identifier(&self.database, "database")?;
         validate_identifier(&self.username, "username")?;
         validate_identifier(&self.schema, "schema")?;
+        validate_identifier(&self.middle_schema, "middle_schema")?;
         validate_identifier(&self.table_prefix, "table_prefix")?;
         validate_bbox(&self.bbox)?;
         if self.host.trim().is_empty() {
@@ -91,7 +92,7 @@ impl Osm2pgsqlConfig {
             OsString::from("-U"),
             OsString::from(self.username.as_str()),
             OsString::from("--middle-schema"),
-            OsString::from(self.schema.as_str()),
+            OsString::from(self.middle_schema.as_str()),
             OsString::from("--prefix"),
             OsString::from(self.table_prefix.as_str()),
             OsString::from("--bbox"),
@@ -159,8 +160,9 @@ mod tests {
             host: "postgis".into(),
             port: 5432,
             username: "idrisi_import".into(),
-            schema: "tiles_import".into(),
-            table_prefix: "job_12345678".into(),
+            schema: "idrisi_stage_1234567890abcdef1234567890abcdef".into(),
+            middle_schema: "idrisi_mid_1234567890abcdef1234567890abcdef".into(),
+            table_prefix: "j1234567890abcdef".into(),
             bbox: "107.35,-7.15,107.85,-6.75".into(),
         }
     }
@@ -204,7 +206,10 @@ mod tests {
     fn rejects_invalid_bbox() {
         let mut config = config();
         config.bbox = "107,-7,106,-6".into();
-        assert_eq!(config.invocation().unwrap_err(), ConfigError::InvalidIdentifier("bbox"));
+        assert_eq!(
+            config.invocation().unwrap_err(),
+            ConfigError::InvalidIdentifier("bbox")
+        );
     }
 
     #[test]
@@ -486,4 +491,3 @@ mod acquisition_tests {
         assert!(matches!(result, Err(DownloadError::InvalidPolicy)));
     }
 }
-

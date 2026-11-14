@@ -145,14 +145,16 @@ fn parse_report(file_size_bytes: u64, report: Value) -> Result<PbfInspection, In
         .get("relations")
         .and_then(Value::as_u64)
         .ok_or(InspectionError::MissingMetadata)?;
-    if node_count.saturating_add(way_count).saturating_add(relation_count) == 0 {
+    if node_count
+        .saturating_add(way_count)
+        .saturating_add(relation_count)
+        == 0
+    {
         return Err(InspectionError::EmptyPbf);
     }
 
     let header = report.get("header");
-    let header_option = |key: &str| -> Option<&Value> {
-        header?.get("option")?.get(key)
-    };
+    let header_option = |key: &str| -> Option<&Value> { header?.get("option")?.get(key) };
 
     Ok(PbfInspection {
         file_size_bytes,

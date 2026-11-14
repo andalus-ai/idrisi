@@ -4,11 +4,11 @@
 
 The separate `idrisi-worker` process polls the durable PostgreSQL queue, claims only registered job types, renews fenced leases while work is running, and records retryable failures with bounded exponential backoff.
 
-The first registered handler is `osm.pbf.stage`. It downloads an OSM PBF into a persistent, per-job/per-attempt directory, accepts HTTPS only, rejects redirects, enforces an operator-configured host allowlist and byte limit, computes SHA-256, checks a queued checksum when one is supplied, then runs `osmium fileinfo --extended --json` against the complete PBF. The `osm.pbf.import` handler repeats source acquisition and inspection, runs the reviewed flex style with unique per-attempt table names in `tiles_import`, and validates the resulting geometries and extents against the dataset's catalog coverage.
+The worker supports `osm.pbf.stage` and `osm.pbf.import`. Both download an allowlisted HTTPS PBF, enforce a streamed byte ceiling, calculate SHA-256, optionally verify a queued checksum, and run bounded full-file `osmium fileinfo` inspection. The import handler additionally invokes osm2pgsql flex using the reviewed Bandung profile, rendered into a data schema derived from the current lease token, and validates the resulting PostGIS tables.
 
 ## Important boundary
 
-A successful `osm.pbf.stage` job means the PBF was downloaded, checksum-verified (when a checksum was supplied), and parsed by osmium. A successful `osm.pbf.import` job means the file was imported into uniquely named tables in `tiles_import` and passed structural PostGIS validation. Neither job publishes data. The worker has no access to the `tiles` schema; publication remains a separate transaction and role.
+A successful `osm.pbf.stage` job means the PBF was downloaded, checksum-verified when requested, and parsed by osmium. A successful `osm.pbf.import` job means it was imported into lease-derived data and middle schemas and passed PostGIS validation. Neither job publishes data or updates Martin-visible tables. The worker cannot access `tiles` or `tiles_import`; publication remains a separate transaction and role.
 
 ## Compose
 
@@ -52,7 +52,7 @@ The import job derives its bounding box from the registered dataset coverage. It
 ```sql
 INSERT INTO ingestion_jobs (
     dataset_id, job_type, idempotency_key, source_uri, importer_name,
-    importer_version, staging_schema, max_attempts, requested_by
+    max_attempts, requested_by
 )
 SELECT
     dataset.id,
@@ -60,8 +60,6 @@ SELECT
     'osm-bandung-import-v1',
     source.source_uri,
     'osm2pgsql-flex',
-    'debian-bookworm',
-    'tiles_import',
     3,
     'operator'
 FROM datasets AS dataset
@@ -70,7 +68,7 @@ WHERE dataset.slug = 'osm-bandung-pilot'
 ON CONFLICT (idempotency_key) DO NOTHING;
 ```
 
-Each lease attempt generates a distinct table prefix under `tiles_import`. Validation checks required tables, non-empty roads, null/empty/invalid geometry, SRID 4326, and bounds against dataset coverage. The resulting tables remain unpublished and are not visible to Martin.
+Each lease attempt generates `idrisi_stage_<lease-uuid>` for flex output and `idrisi_mid_<lease-uuid>` for osm2pgsql slim state. Fixed `SECURITY DEFINER` functions create/drop only these UUID-derived names; job payloads cannot supply schema names or DDL. Validation checks all four expected layers, non-empty roads, null/empty/invalid geometry, SRID 4326, and extents inside dataset coverage. Successful staging schemas remain unpublished and invisible to Martin. Failed jobs drop their attempt schemas; hard process loss may leave orphan schemas for retention cleanup.
 
 ## Worker configuration
 
@@ -84,9 +82,10 @@ Each lease attempt generates a distinct table prefix under `tiles_import`. Valid
 | `IDRISI_WORKER_LEASE_SECONDS` | 300 | Database lease duration |
 | `IDRISI_WORKER_HEARTBEAT_SECONDS` | 30 | Lease renewal cadence |
 | `IDRISI_WORKER_REQUEST_TIMEOUT_SECONDS` | 14400 | Maximum source download duration |
-| `IDRISI_OSMIUM_PATH` | `/usr/bin/osmium` | Pinned osmium-tool executable path |
+| `IDRISI_OSMIUM_PATH` | `/usr/bin/osmium` | osmium-tool executable path |
 | `IDRISI_WORKER_INSPECTION_TIMEOUT_SECONDS` | 1800 | Maximum full-file PBF inspection duration |
 | `IDRISI_OSM2PGSQL_PATH` | `/usr/bin/osm2pgsql` | osm2pgsql flex executable |
+| `IDRISI_OSM_STYLE_PATH` | `/opt/idrisi/osm2pgsql/bandung.lua` | Reviewed flex style template |
 | `IDRISI_WORKER_IMPORT_TIMEOUT_SECONDS` | 21600 | Maximum import duration |
 
 ## Operational notes
@@ -104,14 +103,9 @@ Each lease attempt generates a distinct table prefix under `tiles_import`. Valid
 ## Per-job staging namespace preparation
 
 The ingestion crate now exposes `staging::StagingNamespace`. It derives distinct,
-PostgreSQL-safe data and osm2pgsql middle-schema identifiers from the job UUID.
+PostgreSQL-safe data and osm2pgsql middle-schema identifiers from the lease UUID.
 Its flex-style renderer redirects the four reviewed `schema = 'tiles'` declarations
 in the committed Bandung Lua profile into the job's data schema. It fails closed
 if the template no longer contains exactly four declarations.
 
-This is a preparation primitive, not an active import stage yet: the worker does
-not create these schemas, invoke osm2pgsql, validate imported geometries, or publish
-the staged tables. Database grants and a fenced import handler must be added before
-enabling queue-driven imports. Do not manually execute a rendered style against a
-production database until the staging role's schema privileges and cleanup policy
-are deployed.
+This namespace primitive is now used by the import handler. The worker can only create/drop its lease-derived schemas through fixed database functions; it cannot create arbitrary schemas or access the published `tiles` namespace.
