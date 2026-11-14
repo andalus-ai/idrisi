@@ -200,6 +200,29 @@ impl JobRepository {
         ensure_one_row(result.rows_affected())
     }
 
+    /// Returns an interrupted job to the queue without consuming a retry attempt.
+    pub async fn release(
+        &self,
+        job_id: Uuid,
+        lease_token: Uuid,
+    ) -> Result<(), LeaseError> {
+        let result = sqlx::query(
+            r#"UPDATE ingestion_jobs
+               SET status = 'queued', stage = 'queued', progress_percent = 0,
+                   attempt_count = GREATEST(attempt_count - 1, 0),
+                   available_at = now(), finished_at = NULL,
+                   lease_owner = NULL, lease_token = NULL, lease_expires_at = NULL,
+                   updated_at = now()
+               WHERE id = $1 AND status = 'running' AND lease_token = $2
+                 AND lease_expires_at > now()"#,
+        )
+        .bind(job_id)
+        .bind(lease_token)
+        .execute(&self.pool)
+        .await?;
+        ensure_one_row(result.rows_affected())
+    }
+
     /// Marks a job successful after the handler's durable output has been committed.
     pub async fn complete(
         &self,
