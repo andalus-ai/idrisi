@@ -19,7 +19,7 @@ Claims use `FOR UPDATE SKIP LOCKED`; workers pass an explicit allowlist of job t
 
 ## Supported job types
 
-The first worker binary supports only `osm.pbf.stage`. It downloads an allowlisted HTTPS PBF source, applies a byte limit, computes SHA-256 and stores the artifact under the persistent worker volume. A successful staging job does not mean that the data has been imported or published to Martin.
+The first worker binary supports only `osm.pbf.stage`. It downloads an allowlisted HTTPS PBF source, applies a byte limit, computes SHA-256, optionally verifies the queued checksum, and runs a bounded full-file `osmium fileinfo` inspection. The result metadata records object counts, extent, timestamps and replication metadata. This still does not mean that the data has been imported or published to Martin.
 
 See [worker operations](worker.md) for deployment, configuration and the operator enqueue example.
 

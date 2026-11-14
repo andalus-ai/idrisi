@@ -27,6 +27,8 @@ struct Config {
     osmium_bin: String,
     inspection_timeout: Duration,
     max_inspection_report_bytes: usize,
+    osmium_executable: PathBuf,
+    inspection_timeout: Duration,
 }
 
 impl Config {
@@ -74,6 +76,9 @@ impl Config {
         );
         let osmium_bin = env::var("IDRISI_WORKER_OSMIUM_BIN")
             .unwrap_or_else(|_| "/usr/bin/osmium".to_owned());
+        let osmium_executable = PathBuf::from(
+            env::var("IDRISI_OSMIUM_PATH").unwrap_or_else(|_| "/usr/bin/osmium".to_owned()),
+        );
         let inspection_timeout = Duration::from_secs(
             env::var("IDRISI_WORKER_INSPECTION_TIMEOUT_SECONDS")
                 .unwrap_or_else(|_| "1800".to_owned())
@@ -88,6 +93,7 @@ impl Config {
             || request_timeout.is_zero()
             || inspection_timeout.is_zero()
             || max_inspection_report_bytes == 0
+            || osmium_executable.as_os_str().is_empty()
         {
             return Err("worker byte and duration settings must be positive".into());
         }
@@ -105,6 +111,8 @@ impl Config {
             osmium_bin,
             inspection_timeout,
             max_inspection_report_bytes,
+            osmium_executable,
+            inspection_timeout,
         })
     }
 }
@@ -238,17 +246,17 @@ async fn process_job(
         repository
             .set_stage(job_id, lease_token, JobStage::Inspecting, 90)
             .await
-            .map_err(|_| "job stage update failed".to_owned())?;
+            .map_err(|error| error.to_string())?;
         let inspection = inspect(
             &destination,
             &InspectionPolicy {
-                executable: config.osmium_bin.clone(),
+                executable: config.osmium_executable.clone(),
                 deadline: config.inspection_timeout,
-                max_json_bytes: config.max_inspection_report_bytes,
+                max_json_bytes: 4 * 1024 * 1024,
             },
         )
         .await
-        .map_err(|_| "PBF structural inspection failed".to_owned())?;
+        .map_err(|error| error.to_string())?;
 
         Ok(json!({
             "artifact": "source.osm.pbf",
@@ -261,12 +269,19 @@ async fn process_job(
                 "ways": inspection.ways,
                 "relations": inspection.relations,
                 "bbox": inspection.bbox,
+            "source_uri": job.source_uri,
+            "inspection": {
+                "file_size_bytes": inspection.file_size_bytes,
+                "node_count": inspection.node_count,
+                "way_count": inspection.way_count,
+                "relation_count": inspection.relation_count,
+                "data_bbox": inspection.data_bbox,
                 "first_timestamp": inspection.first_timestamp,
                 "last_timestamp": inspection.last_timestamp,
                 "replication_timestamp": inspection.replication_timestamp,
                 "replication_sequence": inspection.replication_sequence
             },
-            "state": "staged",
+            "state": "staged_and_inspected",
             "next_step": "osm.pbf.import"
         }))
     };
