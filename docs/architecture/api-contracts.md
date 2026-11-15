@@ -102,3 +102,44 @@ Never return stack traces, database errors, credentials, or upstream provider er
 - Breaking changes require a new version or an explicitly documented migration.
 - Publish OpenAPI documents and representative examples.
 - Maintain contract tests for gateway and adapters.
+
+
+## Version-aware tile catalog
+
+The catalog API exposes the currently published version and only its registered, enabled tile layers:
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/catalog/datasets/{dataset_slug}/tile-catalog` | Resolve the published dataset version and its approved Martin sources |
+
+The response is a discovery document for clients; it does not proxy tile bytes. Each source includes its stable Martin source ID, TileJSON URL, layer zoom limits, geometry type, style metadata, and attribution. Clients should consume these URLs rather than hard-code Martin table names.
+
+The API resolves the version from the dataset's currently `published` version row and only returns layers registered in `layers` with `is_enabled = true`. A layer's optional `metadata.tile_source` must match the server-side allowlist (`osm_roads`, `osm_places`, `osm_buildings`, `osm_water`). For the initial OSM pilot, the layer slug may also map to one of those four known sources. Unknown or arbitrary table names are never passed through to Martin.
+
+Example response (illustrative values):
+
+```json
+{
+  "dataset_id": "00000000-0000-0000-0000-000000000001",
+  "dataset_slug": "bandung-osm",
+  "dataset_name": "Bandung OpenStreetMap",
+  "domain": "roads",
+  "version": "ingest-...",
+  "published_at": "2026-11-15T00:00:00Z",
+  "feature_count": 123456,
+  "source_checksum": "sha256:...",
+  "attribution": "© OpenStreetMap contributors",
+  "tilejson_base": "/api/idrisi/tiles",
+  "sources": [
+    {
+      "layer_slug": "roads",
+      "tile_source": "osm_roads",
+      "tilejson_url": "/api/idrisi/tiles/osm_roads",
+      "min_zoom": 0,
+      "max_zoom": 14
+    }
+  ]
+}
+```
+
+Martin remains private and reads only the `tiles` schema through `martin_tiles`. The publisher performs the transactional physical table swap into stable names in that schema. Consequently, the tile URL remains stable across dataset version changes; the catalog endpoint communicates which published version currently backs those stable sources. Clients needing reproducible historical maps must pin/archive a separate versioned tile package rather than assume that a stable live Martin URL serves old versions.
