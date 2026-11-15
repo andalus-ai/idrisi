@@ -315,7 +315,8 @@ async fn shutdown_signal() {
 
 #[cfg(test)]
 mod tests {
-    use super::app;
+    use super::{app, martin_source_for_layer};
+    use serde_json::json;
     use axum::{body::Body, http::Request};
     use tower::ServiceExt;
 
@@ -352,3 +353,17 @@ mod tests {
         );
     }
 }
+    #[test]
+    fn tile_source_mapping_is_allowlisted() {
+        assert_eq!(martin_source_for_layer("roads", &json!({})), Some("osm_roads"));
+        assert_eq!(
+            martin_source_for_layer("custom", &json!({"tile_source":"osm_water"})),
+            Some("osm_water")
+        );
+        assert_eq!(
+            martin_source_for_layer("custom", &json!({"tile_source":"private_schema.secret"})),
+            None
+        );
+        assert_eq!(martin_source_for_layer("unknown", &json!({})), None);
+    }
+
