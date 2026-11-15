@@ -44,7 +44,7 @@ struct DatasetTileCatalog {
     dataset_name: String,
     domain: String,
     version: String,
-    published_at: chrono::DateTime<chrono::Utc>,
+    published_at: Option<chrono::DateTime<chrono::Utc>>,
     feature_count: Option<i64>,
     source_checksum: Option<String>,
     attribution: String,
@@ -108,7 +108,7 @@ async fn get_dataset_tile_catalog(
         return Err(StatusCode::SERVICE_UNAVAILABLE);
     };
 
-    let dataset = sqlx::query_as::<_, (Uuid, String, String, String, String, chrono::DateTime<chrono::Utc>, Option<i64>, Option<String>, String)>(
+    let dataset = sqlx::query_as::<_, (Uuid, String, String, String, String, Option<chrono::DateTime<chrono::Utc>>, Option<i64>, Option<String>, String)>(
         "SELECT d.id, d.slug, d.name, d.domain, v.version, v.published_at,
                 v.feature_count, v.source_checksum, COALESCE(s.attribution, 'Unknown attribution')
          FROM datasets d
