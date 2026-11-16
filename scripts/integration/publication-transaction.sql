@@ -8,7 +8,7 @@ DECLARE
     v_publish_job_id uuid := gen_random_uuid();
     v_lease_token uuid := gen_random_uuid();
     v_data_schema text := 'idrisi_stage_' || replace(gen_random_uuid()::text, '-', '');
-    v_middle_schema text := 'idrisi_mid_' || replace(gen_random_uuid()::text, '-', '');
+    v_middle_schema text := 'idrisi_mid_' || substring(v_data_schema FROM length('idrisi_stage_') + 1);
     v_published_version_count integer;
     v_source_state text;
     v_publish_status text;
