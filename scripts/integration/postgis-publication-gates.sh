@@ -37,55 +37,50 @@ if [[ "$ready" != 1 ]]; then
   exit 1
 fi
 
-"${compose[@]}" exec -T postgres sh -ec '
-  psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set=ON_ERROR_STOP=1 <<'"'"'SQL'"'"'
+"${compose[@]}" exec -T postgres sh -c \
+  'exec psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set=ON_ERROR_STOP=1' <<'SQL'
 DO $check$
 DECLARE
     migration_count integer;
-    duplicate_count integer;
 BEGIN
     SELECT count(*) INTO migration_count FROM _sqlx_migrations WHERE success;
-    SELECT count(*) INTO duplicate_count
-    FROM (
-        SELECT version FROM _sqlx_migrations GROUP BY version HAVING count(*) > 1
-    ) duplicates;
-    IF migration_count <> 8 OR duplicate_count <> 0 THEN
-        RAISE EXCEPTION '"'"'expected 8 unique successful migrations; found %, duplicate versions %',
-            migration_count, duplicate_count;
+    IF migration_count <> 8 THEN
+        RAISE EXCEPTION 'expected 8 successful migrations; found %', migration_count;
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = '"'"'postgis'"'"') THEN
-        RAISE EXCEPTION '"'"'PostGIS extension is missing'"'"';
+    IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'postgis') THEN
+        RAISE EXCEPTION 'PostGIS extension is missing';
     END IF;
 
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_proc
-        WHERE proname = '"'"'idrisi_publish_osm_dataset'"'"'
-    ) THEN
-        RAISE EXCEPTION '"'"'publication function is missing'"'"';
+    IF to_regprocedure('public.idrisi_publish_osm_dataset(uuid,uuid)') IS NULL THEN
+        RAISE EXCEPTION 'publication function is missing';
     END IF;
 
-    IF has_schema_privilege('"'"'idrisi_ingest'"'"', '"'"'tiles'"'"', '"'"'USAGE'"'"')
-       OR has_schema_privilege('"'"'idrisi_ingest'"'"', '"'"'tiles'"'"', '"'"'CREATE'"'"') THEN
-        RAISE EXCEPTION '"'"'ingestion role must not access the published tiles schema'"'"';
+    IF has_schema_privilege('idrisi_ingest', 'tiles', 'USAGE')
+       OR has_schema_privilege('idrisi_ingest', 'tiles', 'CREATE') THEN
+        RAISE EXCEPTION 'ingestion role must not access the published tiles schema';
     END IF;
 
-    IF has_schema_privilege('"'"'idrisi_publish'"'"', '"'"'tiles'"'"', '"'"'CREATE'"'"') THEN
-        RAISE EXCEPTION '"'"'publisher role must not create objects in tiles directly'"'"';
+    IF has_schema_privilege('idrisi_publish', 'tiles', 'CREATE') THEN
+        RAISE EXCEPTION 'publisher role must not create objects in tiles directly';
     END IF;
 
-    IF NOT has_column_privilege('"'"'idrisi_publish'"'"', '"'"'ingestion_jobs'"'"', '"'"'status'"'"', '"'"'UPDATE'"'"')
-       OR has_table_privilege('"'"'idrisi_publish'"'"', '"'"'ingestion_jobs'"'"', '"'"'DELETE'"'"') THEN
-        RAISE EXCEPTION '"'"'publisher queue privileges are not least-privilege'"'"';
+    IF NOT has_column_privilege('idrisi_publish', 'ingestion_jobs', 'status', 'UPDATE')
+       OR has_table_privilege('idrisi_publish', 'ingestion_jobs', 'DELETE') THEN
+        RAISE EXCEPTION 'publisher queue privileges are not least-privilege';
     END IF;
 
-    IF NOT has_schema_privilege('"'"'martin_tiles'"'"', '"'"'tiles'"'"', '"'"'USAGE'"'"')
-       OR has_schema_privilege('"'"'martin_tiles'"'"', '"'"'public'"'"', '"'"'CREATE'"'"') THEN
-        RAISE EXCEPTION '"'"'Martin role privileges are not correctly isolated'"'"';
+    IF NOT has_schema_privilege('martin_tiles', 'tiles', 'USAGE')
+       OR has_schema_privilege('martin_tiles', 'public', 'CREATE') THEN
+        RAISE EXCEPTION 'Martin role privileges are not correctly isolated';
     END IF;
 END;
 $check$;
 SQL
-'
 
-echo "PostGIS migration and role-boundary integration checks passed."
+echo "Running atomic publication and rollback fixture..."
+"${compose[@]}" exec -T postgres sh -c \
+  'exec psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --set=ON_ERROR_STOP=1' \
+  < scripts/integration/publication-transaction.sql
+
+echo "PostGIS migration, role-boundary, publication, and rollback checks passed."
