@@ -132,4 +132,4 @@ volumes:
 
 networks:
   idrisi-internal:
-    name: idrisi-internal
+    driver: bridge
