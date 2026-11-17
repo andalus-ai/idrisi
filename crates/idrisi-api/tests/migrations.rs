@@ -78,13 +78,12 @@ async fn postgres_migrations_and_staging_role_boundaries() {
         .await
         .expect("reset integration role");
 
-    let publisher_can_read: bool = sqlx::query_scalar(
-        "SELECT has_table_privilege('idrisi_publish', $1, 'SELECT')",
-    )
-    .bind(format!("{data_schema}.permission_probe"))
-    .fetch_one(&mut *connection)
-    .await
-    .expect("check publisher default privileges");
+    let publisher_can_read: bool =
+        sqlx::query_scalar("SELECT has_table_privilege('idrisi_publish', $1, 'SELECT')")
+            .bind(format!("{data_schema}.permission_probe"))
+            .fetch_one(&mut *connection)
+            .await
+            .expect("check publisher default privileges");
     assert!(publisher_can_read);
 
     sqlx::query("SELECT idrisi_drop_osm_staging_schemas($1)")
