@@ -36,7 +36,6 @@ struct DatasetSummary {
     updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-
 #[derive(Serialize)]
 struct DatasetTileCatalog {
     dataset_id: Uuid,
@@ -108,7 +107,20 @@ async fn get_dataset_tile_catalog(
         return Err(StatusCode::SERVICE_UNAVAILABLE);
     };
 
-    let dataset = sqlx::query_as::<_, (Uuid, String, String, String, String, Option<chrono::DateTime<chrono::Utc>>, Option<i64>, Option<String>, String)>(
+    let dataset = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            String,
+            String,
+            String,
+            String,
+            Option<chrono::DateTime<chrono::Utc>>,
+            Option<i64>,
+            Option<String>,
+            String,
+        ),
+    >(
         "SELECT d.id, d.slug, d.name, d.domain, v.version, v.published_at,
                 v.feature_count, v.source_checksum, COALESCE(s.attribution, 'Unknown attribution')
          FROM datasets d
@@ -156,7 +168,10 @@ async fn get_dataset_tile_catalog(
                 max_zoom: layer.max_zoom,
                 tile_source: tile_source.to_owned(),
                 tilejson_url: format!("/api/idrisi/tiles/{tile_source}"),
-                attribution: layer.attribution_override.clone().unwrap_or_else(|| dataset.8.clone()),
+                attribution: layer
+                    .attribution_override
+                    .clone()
+                    .unwrap_or_else(|| dataset.8.clone()),
                 style: layer.style,
             })
         })
@@ -251,7 +266,10 @@ fn app(pool: Option<PgPool>) -> Router {
         .route("/health/ready", get(ready))
         .route("/v1/catalog/datasets", get(list_datasets))
         .route("/v1/catalog/datasets/{dataset_id}", get(get_dataset))
-        .route("/v1/catalog/datasets/{dataset_slug}/tile-catalog", get(get_dataset_tile_catalog))
+        .route(
+            "/v1/catalog/datasets/{dataset_slug}/tile-catalog",
+            get(get_dataset_tile_catalog),
+        )
         .with_state(AppState { pool })
 }
 
@@ -315,10 +333,11 @@ async fn shutdown_signal() {
 
 #[cfg(test)]
 mod tests {
-    use super::{app, martin_source_for_layer};
-    use serde_json::json;
     use axum::{body::Body, http::Request};
+    use serde_json::json;
     use tower::ServiceExt;
+
+    use super::{app, martin_source_for_layer};
 
     #[tokio::test]
     async fn liveness_endpoint_returns_alive() {
@@ -352,10 +371,13 @@ mod tests {
             axum::http::StatusCode::SERVICE_UNAVAILABLE
         );
     }
-}
+
     #[test]
     fn tile_source_mapping_is_allowlisted() {
-        assert_eq!(martin_source_for_layer("roads", &json!({})), Some("osm_roads"));
+        assert_eq!(
+            martin_source_for_layer("roads", &json!({})),
+            Some("osm_roads")
+        );
         assert_eq!(
             martin_source_for_layer("custom", &json!({"tile_source":"osm_water"})),
             Some("osm_water")
@@ -366,4 +388,4 @@ mod tests {
         );
         assert_eq!(martin_source_for_layer("unknown", &json!({})), None);
     }
-
+}
